@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
+import java.util.Optional;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
@@ -76,7 +77,7 @@ public class OrcOutputBuffer
      */
     private int bufferPosition;
 
-    public OrcOutputBuffer(CompressionKind compression, int maxBufferSize)
+    public OrcOutputBuffer(CompressionKind compression, Optional<DwrfEncryptor> encryptor, int maxBufferSize)
     {
         requireNonNull(compression, "compression is null");
         checkArgument(maxBufferSize > PAGE_HEADER_SIZE, "maximum buffer size should be greater than page header size");
@@ -88,23 +89,34 @@ public class OrcOutputBuffer
 
         compressedOutputStream = new ChunkedSliceOutput(MINIMUM_OUTPUT_BUFFER_CHUNK_SIZE, MAXIMUM_OUTPUT_BUFFER_CHUNK_SIZE);
 
+        Compressor compressor;
         if (compression == CompressionKind.NONE) {
-            this.compressor = null;
+            compressor = null;
         }
         else if (compression == CompressionKind.SNAPPY) {
-            this.compressor = new SnappyCompressor();
+            compressor = new SnappyCompressor();
         }
         else if (compression == CompressionKind.ZLIB) {
-            this.compressor = new DeflateCompressor();
+            compressor = new DeflateCompressor();
         }
         else if (compression == CompressionKind.LZ4) {
-            this.compressor = new Lz4Compressor();
+            compressor = new Lz4Compressor();
         }
         else if (compression == CompressionKind.ZSTD) {
-            this.compressor = new ZstdJniCompressor();
+            compressor = new ZstdJniCompressor();
         }
         else {
             throw new IllegalArgumentException("Unsupported compression " + compression);
+        }
+
+        if (encryptor.isPresent()) {
+            if (compressor == null) {
+                throw new UnsupportedOperationException("DWRF encryption not supported without compression");
+            }
+            this.compressor = new EncryptingCompressor(encryptor.get(), compressor);
+        }
+        else {
+            this.compressor = compressor;
         }
     }
 

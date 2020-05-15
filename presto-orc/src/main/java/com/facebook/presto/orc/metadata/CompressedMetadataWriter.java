@@ -19,6 +19,7 @@ import io.airlift.slice.Slice;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static java.lang.Math.toIntExact;
 
@@ -30,7 +31,7 @@ public class CompressedMetadataWriter
     public CompressedMetadataWriter(MetadataWriter metadataWriter, CompressionKind compression, int bufferSize)
     {
         this.metadataWriter = metadataWriter;
-        this.buffer = new OrcOutputBuffer(compression, bufferSize);
+        this.buffer = new OrcOutputBuffer(compression, Optional.empty(), bufferSize);
     }
 
     public List<Integer> getOrcMetadataVersion()

@@ -161,7 +161,7 @@ public class DwrfMetadataWriter
         throw new IllegalArgumentException("Unsupported type: " + orcTypeKind);
     }
 
-    private static DwrfProto.ColumnStatistics toColumnStatistics(ColumnStatistics columnStatistics)
+    public static DwrfProto.ColumnStatistics toColumnStatistics(ColumnStatistics columnStatistics)
     {
         DwrfProto.ColumnStatistics.Builder builder = DwrfProto.ColumnStatistics.newBuilder();
 

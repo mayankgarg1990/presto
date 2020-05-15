@@ -87,6 +87,7 @@ public class OrcFileWriter
                     fileColumnTypes,
                     orcEncoding,
                     compression,
+                    Optional.empty(),
                     options,
                     metadata,
                     hiveStorageTimeZone,
