@@ -77,9 +77,10 @@ public class OrcOutputBuffer
      */
     private int bufferPosition;
 
-    public OrcOutputBuffer(CompressionKind compression, Optional<DwrfEncryptor> encryptor, int maxBufferSize)
+    public OrcOutputBuffer(CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int maxBufferSize)
     {
         requireNonNull(compression, "compression is null");
+        requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         checkArgument(maxBufferSize > PAGE_HEADER_SIZE, "maximum buffer size should be greater than page header size");
 
         this.maxBufferSize = compression == CompressionKind.NONE ? maxBufferSize : maxBufferSize - PAGE_HEADER_SIZE;
@@ -109,11 +110,11 @@ public class OrcOutputBuffer
             throw new IllegalArgumentException("Unsupported compression " + compression);
         }
 
-        if (encryptor.isPresent()) {
+        if (dwrfEncryptor.isPresent()) {
             if (compressor == null) {
                 throw new UnsupportedOperationException("DWRF encryption not supported without compression");
             }
-            this.compressor = new EncryptingCompressor(encryptor.get(), compressor);
+            this.compressor = new EncryptingCompressor(dwrfEncryptor.get(), compressor);
         }
         else {
             this.compressor = compressor;

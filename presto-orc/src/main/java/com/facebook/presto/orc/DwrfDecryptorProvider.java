@@ -17,13 +17,13 @@ import com.facebook.presto.orc.metadata.DwrfEncryption;
 import com.facebook.presto.orc.metadata.EncryptionGroup;
 import com.facebook.presto.orc.metadata.KeyProvider;
 import com.facebook.presto.orc.metadata.OrcType;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.slice.Slice;
 
 import java.util.List;
 import java.util.Map;
 
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 public class DwrfDecryptorProvider
@@ -41,16 +41,19 @@ public class DwrfDecryptorProvider
     {
         return new DwrfDecryptorProvider(
                 getDecryptionLibrary(dwrfEncryption.getKeyProvider()),
-                createNodeToGroupMap(dwrfEncryption.getEncryptionGroups(), types));
+                createNodeToGroupMap(
+                        dwrfEncryption.getEncryptionGroups().stream()
+                                .map(EncryptionGroup::getNodes)
+                                .collect(toImmutableList()),
+                        types));
     }
 
-    @VisibleForTesting
-    public static Map<Integer, Integer> createNodeToGroupMap(List<EncryptionGroup> encryptionGroups, List<OrcType> types)
+    public static Map<Integer, Integer> createNodeToGroupMap(List<List<Integer>> encryptionGroups, List<OrcType> types)
     {
         ImmutableMap.Builder<Integer, Integer> nodeToGroupMapBuilder = ImmutableMap.builder();
         for (int groupId = 0; groupId < encryptionGroups.size(); groupId++) {
             // if group has key, use that.  otherwise use from stripe
-            for (Integer rootId : encryptionGroups.get(groupId).getNodes()) {
+            for (Integer rootId : encryptionGroups.get(groupId)) {
                 OrcType type = types.get(rootId);
                 for (int childId = rootId; childId < rootId + type.getFieldCount() + 1; childId++) {
                     nodeToGroupMapBuilder.put(childId, groupId);
@@ -82,9 +85,9 @@ public class DwrfDecryptorProvider
         return new TestingEncryptionLibrary();
     }
 
-    public DwrfDecryptor createDecryptor(Slice keyMetadata)
+    public DwrfEncryptor createDecryptor(Slice keyMetadata)
     {
-        return new DwrfDecryptor(keyMetadata, encryptionLibrary);
+        return new DwrfEncryptor(keyMetadata, encryptionLibrary);
     }
 
     public Map<Integer, Integer> getNodeToGroupMap()

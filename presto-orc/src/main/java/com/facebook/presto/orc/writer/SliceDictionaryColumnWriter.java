@@ -17,6 +17,7 @@ import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.block.DictionaryBlock;
 import com.facebook.presto.common.type.Type;
 import com.facebook.presto.orc.DictionaryCompressionOptimizer.DictionaryColumn;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.array.IntBigArray;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
@@ -73,6 +74,7 @@ public class SliceDictionaryColumnWriter
     private final int column;
     private final Type type;
     private final CompressionKind compression;
+    private final Optional<DwrfEncryptor> dwrfEncryptor;
     private final int bufferSize;
     private final OrcEncoding orcEncoding;
     private final int stringStatisticsLimitInBytes;
@@ -102,26 +104,34 @@ public class SliceDictionaryColumnWriter
     private boolean directEncoded;
     private SliceDirectColumnWriter directColumnWriter;
 
-    public SliceDictionaryColumnWriter(int column, Type type, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, DataSize stringStatisticsLimit)
+    public SliceDictionaryColumnWriter(
+            int column,
+            Type type,
+            CompressionKind compression,
+            Optional<DwrfEncryptor> dwrfEncryptor,
+            int bufferSize,
+            OrcEncoding orcEncoding,
+            DataSize stringStatisticsLimit)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compression = requireNonNull(compression, "compression is null");
+        this.dwrfEncryptor = requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         this.bufferSize = bufferSize;
         this.orcEncoding = requireNonNull(orcEncoding, "orcEncoding is null");
         this.stringStatisticsLimitInBytes = toIntExact(requireNonNull(stringStatisticsLimit, "stringStatisticsLimit is null").toBytes());
         LongOutputStream result;
         if (orcEncoding == DWRF) {
-            result = new LongOutputStreamV1(compression, bufferSize, false, DATA);
+            result = new LongOutputStreamV1(compression, dwrfEncryptor, bufferSize, false, DATA);
         }
         else {
             result = new LongOutputStreamV2(compression, bufferSize, false, DATA);
         }
         this.dataStream = result;
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
-        this.dictionaryDataStream = new ByteArrayOutputStream(compression, bufferSize, StreamKind.DICTIONARY_DATA);
-        this.dictionaryLengthStream = createLengthOutputStream(compression, bufferSize, orcEncoding);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
+        this.dictionaryDataStream = new ByteArrayOutputStream(compression, dwrfEncryptor, bufferSize, StreamKind.DICTIONARY_DATA);
+        this.dictionaryLengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
         values = new IntBigArray();
         this.statisticsBuilder = newStringStatisticsBuilder();
     }
@@ -174,7 +184,7 @@ public class SliceDictionaryColumnWriter
         checkState(!closed);
         checkState(!directEncoded);
         if (directColumnWriter == null) {
-            directColumnWriter = new SliceDirectColumnWriter(column, type, compression, bufferSize, orcEncoding, this::newStringStatisticsBuilder);
+            directColumnWriter = new SliceDirectColumnWriter(column, type, compression, dwrfEncryptor, bufferSize, orcEncoding, this::newStringStatisticsBuilder);
         }
         checkState(directColumnWriter.getBufferedBytes() == 0);
 

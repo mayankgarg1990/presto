@@ -14,6 +14,7 @@
 package com.facebook.presto.orc;
 
 import io.airlift.compress.Compressor;
+import io.airlift.slice.Slice;
 
 import java.nio.ByteBuffer;
 
@@ -34,7 +35,7 @@ public class EncryptingCompressor
     @Override
     public int maxCompressedLength(int uncompressedSize)
     {
-        return dwrfEncryptor.maxEncryptedSize(compressor.maxCompressedLength(uncompressedSize));
+        return dwrfEncryptor.maxEncryptedLength(compressor.maxCompressedLength(uncompressedSize));
     }
 
     @Override
@@ -42,14 +43,18 @@ public class EncryptingCompressor
     {
         byte[] compressorOutput = new byte[maxOutputLength];
         int compressedSize = compressor.compress(input, inputOffset, inputLength, compressorOutput, 0, maxOutputLength);
-        return dwrfEncryptor.encrypt(compressorOutput, 0, compressedSize, output, outputOffset, maxOutputLength);
+        Slice encryptedSlice = dwrfEncryptor.encrypt(compressorOutput, 0, compressedSize);
+        ByteBuffer outputBuffer = ByteBuffer.wrap(output, outputOffset, maxOutputLength);
+        outputBuffer.put(encryptedSlice.byteArray(), encryptedSlice.byteArrayOffset(), encryptedSlice.length());
+        return outputBuffer.position() - outputOffset;
     }
 
     @Override
     public void compress(ByteBuffer input, ByteBuffer output)
     {
-        ByteBuffer compressedOutput = ByteBuffer.allocate(input.capacity());
-        compressor.compress(input, compressedOutput);
-        dwrfEncryptor.encrypt(compressedOutput, output);
+        throw new UnsupportedOperationException("not supported for encrypting compressor");
+//        ByteBuffer compressedOutput = ByteBuffer.allocate(input.capacity());
+//        compressor.compress(input, compressedOutput);
+//        dwrfEncryptor.encrypt(compressedOutput, output);
     }
 }

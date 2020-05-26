@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.FloatStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
@@ -65,14 +66,15 @@ public class FloatColumnWriter
 
     private boolean closed;
 
-    public FloatColumnWriter(int column, Type type, CompressionKind compression, int bufferSize)
+    public FloatColumnWriter(int column, Type type, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize)
     {
         checkArgument(column >= 0, "column is negative");
+        requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
-        this.dataStream = new FloatOutputStream(compression, bufferSize);
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.dataStream = new FloatOutputStream(compression, dwrfEncryptor, bufferSize);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
     }
 
     @Override

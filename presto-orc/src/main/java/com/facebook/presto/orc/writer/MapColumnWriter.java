@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.block.ColumnarMap;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
@@ -68,7 +69,7 @@ public class MapColumnWriter
 
     private boolean closed;
 
-    public MapColumnWriter(int column, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter)
+    public MapColumnWriter(int column, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
@@ -76,8 +77,8 @@ public class MapColumnWriter
         this.columnEncoding = new ColumnEncoding(orcEncoding == DWRF ? DIRECT : DIRECT_V2, 0);
         this.keyWriter = requireNonNull(keyWriter, "keyWriter is null");
         this.valueWriter = requireNonNull(valueWriter, "valueWriter is null");
-        this.lengthStream = createLengthOutputStream(compression, bufferSize, orcEncoding);
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.lengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
     }
 
     @Override

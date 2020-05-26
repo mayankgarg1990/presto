@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
@@ -71,21 +72,29 @@ public class LongColumnWriter
 
     private boolean closed;
 
-    public LongColumnWriter(int column, Type type, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier)
+    public LongColumnWriter(
+            int column,
+            Type type,
+            CompressionKind compression,
+            Optional<DwrfEncryptor> dwrfEncryptor,
+            int bufferSize,
+            OrcEncoding orcEncoding,
+            Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier)
     {
         checkArgument(column >= 0, "column is negative");
+        requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
         if (orcEncoding == DWRF) {
             this.columnEncoding = new ColumnEncoding(DIRECT, 0);
-            this.dataStream = new LongOutputStreamDwrf(compression, bufferSize, true, DATA);
+            this.dataStream = new LongOutputStreamDwrf(compression, dwrfEncryptor, bufferSize, true, DATA);
         }
         else {
             this.columnEncoding = new ColumnEncoding(DIRECT_V2, 0);
             this.dataStream = new LongOutputStreamV2(compression, bufferSize, true, DATA);
         }
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
         this.statisticsBuilderSupplier = requireNonNull(statisticsBuilderSupplier, "statisticsBuilderSupplier is null");
         this.statisticsBuilder = statisticsBuilderSupplier.get();
     }

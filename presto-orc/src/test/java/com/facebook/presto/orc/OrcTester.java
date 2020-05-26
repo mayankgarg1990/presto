@@ -46,6 +46,7 @@ import com.facebook.presto.orc.TupleDomainFilter.DoubleRange;
 import com.facebook.presto.orc.cache.OrcFileTailSource;
 import com.facebook.presto.orc.cache.StorageOrcFileTailSource;
 import com.facebook.presto.orc.metadata.CompressionKind;
+import com.facebook.presto.orc.metadata.KeyProvider;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
 import com.facebook.presto.type.TypeRegistry;
 import com.google.common.base.Functions;
@@ -151,6 +152,7 @@ import static com.facebook.presto.orc.metadata.CompressionKind.NONE;
 import static com.facebook.presto.orc.metadata.CompressionKind.SNAPPY;
 import static com.facebook.presto.orc.metadata.CompressionKind.ZLIB;
 import static com.facebook.presto.orc.metadata.CompressionKind.ZSTD;
+import static com.facebook.presto.orc.metadata.KeyProvider.UNKNOWN;
 import static com.facebook.presto.testing.DateTimeTestingUtils.sqlTimestampOf;
 import static com.facebook.presto.testing.TestingConnectorSession.SESSION;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -283,6 +285,7 @@ public class OrcTester
         orcTester.skipBatchTestsEnabled = true;
         orcTester.formats = ImmutableSet.of(ORC_12, ORC_11, DWRF);
         orcTester.compressions = ImmutableSet.of(ZLIB);
+        orcTester.dwrfEncryption = ImmutableSet.of(true, false);
         return orcTester;
     }
 
@@ -640,6 +643,21 @@ public class OrcTester
 
                     if (skipStripeTestsEnabled) {
                         assertFileContentsPresto(readTypes, tempFile, readValues, false, true, orcEncoding, format, false, useSelectiveOrcReader, settings);
+                    }
+                }
+                if (dwrfEncryptionEnabled && format == DWRF) {// write Presto, read Hive and Presto
+                    try (TempFile tempFile = new TempFile()) {
+                        writeOrcColumnsPresto(tempFile.getFile(), format, compression, writeTypes, writeValues, stats);
+
+                        assertFileContentsPresto(readTypes, tempFile, readValues, false, false, orcEncoding, format, false, useSelectiveOrcReader, settings);
+
+                        if (skipBatchTestsEnabled) {
+                            assertFileContentsPresto(readTypes, tempFile, readValues, true, false, orcEncoding, format, false, useSelectiveOrcReader, settings);
+                        }
+
+                        if (skipStripeTestsEnabled) {
+                            assertFileContentsPresto(readTypes, tempFile, readValues, false, true, orcEncoding, format, false, useSelectiveOrcReader, settings);
+                        }
                     }
                 }
             }
@@ -1339,12 +1357,14 @@ public class OrcTester
         metadata.put("columns", String.join(", ", columnNames));
         metadata.put("columns.types", createSettableStructObjectInspector(types).getTypeName());
 
+        generateEncryptionGroups(types);
         OrcWriter writer = new OrcWriter(
                 new OutputStreamDataSink(new FileOutputStream(outputFile)),
                 columnNames,
                 types,
                 format.getOrcEncoding(),
                 compression,
+                Optional.empty(),
                 new OrcWriterOptions(),
                 ImmutableMap.of(),
                 HIVE_STORAGE_TIME_ZONE,
@@ -1370,6 +1390,17 @@ public class OrcTester
                 new DataSize(1, MEGABYTE),
                 new DataSize(1, MEGABYTE),
                 true));
+    }
+
+    private static void generateEncryptionGroups(List<Type> types)
+    {
+        new DwrfWriterEncryption(
+                UNKNOWN,
+                Slices.utf8Slice("intermediateEncryptionKey"),
+                ImmutableList.of(
+
+                )
+        )
     }
 
     private static OrcSelectiveRecordReader createCustomOrcSelectiveRecordReader(

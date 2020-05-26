@@ -120,7 +120,7 @@ public class StripeReader
         this.cacheable = requireNonNull(cacheable, "hiveFileContext is null");
     }
 
-    public Stripe readStripe(StripeInformation stripe, OrcAggregatedMemoryContext systemMemoryUsage, Optional<GroupDwrfDecryptors> decryptors)
+    public Stripe readStripe(StripeInformation stripe, OrcAggregatedMemoryContext systemMemoryUsage, Optional<DwrfEncryptionInfo> decryptors)
             throws IOException
     {
         StripeId stripeId = new StripeId(orcDataSource.getId(), stripe.getOffset());
@@ -138,7 +138,7 @@ public class StripeReader
         if (streams.size() < includedOrcColumns.size() && decryptors.isPresent()) {
             List<Slice> encryptedEncryptionGroups = stripeFooter.getStripeEncryptionGroups();
             for (int i = 0; i < encryptedEncryptionGroups.size(); i++) {
-                DwrfDecryptor decryptor = decryptors.get().getDecryptorByGroupId(i);
+                DwrfEncryptor decryptor = decryptors.get().getEncryptorByGroupId(i);
                 Slice encryptedGroup = encryptedEncryptionGroups.get(i);
                 Slice decryptedBytes = decryptor.decrypt(encryptedGroup.byteArray(), encryptedGroup.byteArrayOffset(), encryptedGroup.length());
                 StripeEncryptionGroup stripeEncryptionGroup = toStripeEncryptionGroup(decryptedBytes.getBytes(encryptedGroup.byteArrayOffset(), encryptedGroup.length()), types);
@@ -284,7 +284,7 @@ public class StripeReader
         return hasRowGroupDictionary;
     }
 
-    private Map<StreamId, OrcInputStream> readDiskRanges(StripeId stripeId, Map<StreamId, DiskRange> diskRanges, OrcAggregatedMemoryContext systemMemoryUsage, Optional<GroupDwrfDecryptors> decryptors)
+    private Map<StreamId, OrcInputStream> readDiskRanges(StripeId stripeId, Map<StreamId, DiskRange> diskRanges, OrcAggregatedMemoryContext systemMemoryUsage, Optional<DwrfEncryptionInfo> decryptors)
             throws IOException
     {
         //
@@ -300,7 +300,7 @@ public class StripeReader
             OrcDataSourceInput sourceInput = entry.getValue();
             // if it's a dwrf file, and this column is encrypted create DecryptingDecompressor
             Optional<OrcDecompressor> streamDecompressor = decompressor;
-            Optional<DwrfDecryptor> dwrfDecryptor = createDwrfDecryptor(entry.getKey(), decryptors);
+            Optional<DwrfEncryptor> dwrfDecryptor = createDwrfDecryptor(entry.getKey(), decryptors);
             if (dwrfDecryptor.isPresent()) {
                 streamDecompressor = Optional.of(new DecryptingDecompressor(dwrfDecryptor.get(), decompressor.get()));
             }
@@ -309,12 +309,12 @@ public class StripeReader
         return streamsBuilder.build();
     }
 
-    private Optional<DwrfDecryptor> createDwrfDecryptor(StreamId id, Optional<GroupDwrfDecryptors> decryptors)
+    private Optional<DwrfEncryptor> createDwrfDecryptor(StreamId id, Optional<DwrfEncryptionInfo> decryptors)
     {
         if (!decryptors.isPresent()) {
             return Optional.empty();
         }
-        return decryptors.get().getDecryptorByNodeId(id.getColumn());
+        return decryptors.get().getEncryptorByNodeId(id.getColumn());
     }
 
     private Map<StreamId, ValueInputStream<?>> createValueStreams(Map<StreamId, Stream> streams, Map<StreamId, OrcInputStream> streamsData, List<ColumnEncoding> columnEncodings)

@@ -14,6 +14,8 @@
 package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.DwrfEncryptionInfo;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.metadata.CompressionKind;
 import com.facebook.presto.orc.metadata.OrcType;
@@ -25,6 +27,7 @@ import io.airlift.units.DataSize;
 import org.joda.time.DateTimeZone;
 
 import java.util.List;
+import java.util.Optional;
 
 import static com.facebook.presto.orc.OrcEncoding.DWRF;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -42,54 +45,65 @@ public final class ColumnWriters
             int bufferSize,
             OrcEncoding orcEncoding,
             DateTimeZone hiveStorageTimeZone,
-            DataSize stringStatisticsLimit)
+            DataSize stringStatisticsLimit,
+            DwrfEncryptionInfo dwrfEncryptors)
     {
         requireNonNull(type, "type is null");
         OrcType orcType = orcTypes.get(columnIndex);
+        Optional<DwrfEncryptor> dwrfEncryptor = dwrfEncryptors.getEncryptorByNodeId(columnIndex);
         switch (orcType.getOrcTypeKind()) {
             case BOOLEAN:
-                return new BooleanColumnWriter(columnIndex, type, compression, bufferSize);
+                return new BooleanColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize);
 
             case FLOAT:
-                return new FloatColumnWriter(columnIndex, type, compression, bufferSize);
+                return new FloatColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize);
 
             case DOUBLE:
-                return new DoubleColumnWriter(columnIndex, type, compression, bufferSize);
+                return new DoubleColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize);
 
             case BYTE:
-                return new ByteColumnWriter(columnIndex, type, compression, bufferSize);
+                return new ByteColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize);
 
             case DATE:
                 checkArgument(orcEncoding != DWRF, "DWRF does not support %s type", type);
-                return new LongColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding, DateStatisticsBuilder::new);
+                return new LongColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize, orcEncoding, DateStatisticsBuilder::new);
 
             case SHORT:
             case INT:
             case LONG:
-                return new LongColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding, IntegerStatisticsBuilder::new);
+                return new LongColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize, orcEncoding, IntegerStatisticsBuilder::new);
 
             case DECIMAL:
                 checkArgument(orcEncoding != DWRF, "DWRF does not support %s type", type);
                 return new DecimalColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding);
 
             case TIMESTAMP:
-                return new TimestampColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding, hiveStorageTimeZone);
+                return new TimestampColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize, orcEncoding, hiveStorageTimeZone);
 
             case BINARY:
-                return new SliceDirectColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding, BinaryStatisticsBuilder::new);
+                return new SliceDirectColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize, orcEncoding, BinaryStatisticsBuilder::new);
 
             case CHAR:
                 checkArgument(orcEncoding != DWRF, "DWRF does not support %s type", type);
                 // fall through
             case VARCHAR:
             case STRING:
-                return new SliceDictionaryColumnWriter(columnIndex, type, compression, bufferSize, orcEncoding, stringStatisticsLimit);
+                return new SliceDictionaryColumnWriter(columnIndex, type, compression, dwrfEncryptor, bufferSize, orcEncoding, stringStatisticsLimit);
 
             case LIST: {
                 int fieldColumnIndex = orcType.getFieldTypeIndex(0);
                 Type fieldType = type.getTypeParameters().get(0);
-                ColumnWriter elementWriter = createColumnWriter(fieldColumnIndex, orcTypes, fieldType, compression, bufferSize, orcEncoding, hiveStorageTimeZone, stringStatisticsLimit);
-                return new ListColumnWriter(columnIndex, compression, bufferSize, orcEncoding, elementWriter);
+                ColumnWriter elementWriter = createColumnWriter(
+                        fieldColumnIndex,
+                        orcTypes,
+                        fieldType,
+                        compression,
+                        bufferSize,
+                        orcEncoding,
+                        hiveStorageTimeZone,
+                        stringStatisticsLimit,
+                        dwrfEncryptors);
+                return new ListColumnWriter(columnIndex, compression, dwrfEncryptor, bufferSize, orcEncoding, elementWriter);
             }
 
             case MAP: {
@@ -101,7 +115,8 @@ public final class ColumnWriters
                         bufferSize,
                         orcEncoding,
                         hiveStorageTimeZone,
-                        stringStatisticsLimit);
+                        stringStatisticsLimit,
+                        dwrfEncryptors);
                 ColumnWriter valueWriter = createColumnWriter(
                         orcType.getFieldTypeIndex(1),
                         orcTypes,
@@ -110,8 +125,9 @@ public final class ColumnWriters
                         bufferSize,
                         orcEncoding,
                         hiveStorageTimeZone,
-                        stringStatisticsLimit);
-                return new MapColumnWriter(columnIndex, compression, bufferSize, orcEncoding, keyWriter, valueWriter);
+                        stringStatisticsLimit,
+                        dwrfEncryptors);
+                return new MapColumnWriter(columnIndex, compression, dwrfEncryptor, bufferSize, orcEncoding, keyWriter, valueWriter);
             }
 
             case STRUCT: {
@@ -119,9 +135,18 @@ public final class ColumnWriters
                 for (int fieldId = 0; fieldId < orcType.getFieldCount(); fieldId++) {
                     int fieldColumnIndex = orcType.getFieldTypeIndex(fieldId);
                     Type fieldType = type.getTypeParameters().get(fieldId);
-                    fieldWriters.add(createColumnWriter(fieldColumnIndex, orcTypes, fieldType, compression, bufferSize, orcEncoding, hiveStorageTimeZone, stringStatisticsLimit));
+                    fieldWriters.add(createColumnWriter(
+                            fieldColumnIndex,
+                            orcTypes,
+                            fieldType,
+                            compression,
+                            bufferSize,
+                            orcEncoding,
+                            hiveStorageTimeZone,
+                            stringStatisticsLimit,
+                            dwrfEncryptors));
                 }
-                return new StructColumnWriter(columnIndex, compression, bufferSize, fieldWriters.build());
+                return new StructColumnWriter(columnIndex, compression, dwrfEncryptor, bufferSize, fieldWriters.build());
             }
         }
 

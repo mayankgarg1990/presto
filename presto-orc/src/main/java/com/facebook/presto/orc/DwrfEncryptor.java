@@ -27,4 +27,19 @@ public class DwrfEncryptor
         this.keyMetadata = requireNonNull(keyMetadata, "keyMetadata is null");
         this.encryptionLibrary = requireNonNull(encryptionLibrary, "encryptionLibrary is null");
     }
+
+    public Slice decrypt(byte[] input, int offset, int length)
+    {
+        return encryptionLibrary.decrypt(keyMetadata, input, offset, length);
+    }
+
+    public Slice encrypt(byte[] input, int offset, int length)
+    {
+        return encryptionLibrary.encrypt(keyMetadata, input, offset, length);
+    }
+
+    public int maxEncryptedLength(int unencryptedLength)
+    {
+        return encryptionLibrary.getMaxEncryptedLength(keyMetadata, unencryptedLength);
+    }
 }

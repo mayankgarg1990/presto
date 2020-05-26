@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
@@ -77,23 +78,24 @@ public class TimestampColumnWriter
 
     private boolean closed;
 
-    public TimestampColumnWriter(int column, Type type, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, DateTimeZone hiveStorageTimeZone)
+    public TimestampColumnWriter(int column, Type type, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize, OrcEncoding orcEncoding, DateTimeZone hiveStorageTimeZone)
     {
         checkArgument(column >= 0, "column is negative");
+        requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
         if (orcEncoding == DWRF) {
             this.columnEncoding = new ColumnEncoding(DIRECT, 0);
-            this.secondsStream = new LongOutputStreamV1(compression, bufferSize, true, DATA);
-            this.nanosStream = new LongOutputStreamV1(compression, bufferSize, false, SECONDARY);
+            this.secondsStream = new LongOutputStreamV1(compression, dwrfEncryptor, bufferSize, true, DATA);
+            this.nanosStream = new LongOutputStreamV1(compression, dwrfEncryptor, bufferSize, false, SECONDARY);
         }
         else {
             this.columnEncoding = new ColumnEncoding(DIRECT_V2, 0);
             this.secondsStream = new LongOutputStreamV2(compression, bufferSize, true, DATA);
             this.nanosStream = new LongOutputStreamV2(compression, bufferSize, false, SECONDARY);
         }
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
         this.baseTimestampInSeconds = new DateTime(2015, 1, 1, 0, 0, requireNonNull(hiveStorageTimeZone, "hiveStorageTimeZone is null")).getMillis() / MILLIS_PER_SECOND;
     }
 

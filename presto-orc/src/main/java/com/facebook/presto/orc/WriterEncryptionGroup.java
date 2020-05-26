@@ -16,7 +16,6 @@ package com.facebook.presto.orc;
 import io.airlift.slice.Slice;
 
 import java.util.List;
-import java.util.Optional;
 
 import static java.util.Objects.requireNonNull;
 
@@ -25,12 +24,11 @@ public class WriterEncryptionGroup
     // Sub trees in the schema that encryption should be applied
     // Sub tree is identified by its root id
     private final List<Integer> nodes;
-    // Arbitrary binary representing key metadata. It could be identifier
-    // of key in KMS, encrypted DEK or other form of user defined key metadata.
-    //  this is optional and can use first keyMetadata from stripe
-    private final Optional<Slice> keyMetadata;
 
-    public WriterEncryptionGroup(List<Integer> nodes, Optional<Slice> keyMetadata)
+    // key metadata
+    private final Slice keyMetadata;
+
+    public WriterEncryptionGroup(List<Integer> nodes, Slice keyMetadata)
     {
         this.nodes = requireNonNull(nodes, "nodes is null");
         this.keyMetadata = requireNonNull(keyMetadata, "keyMetadata is null");
@@ -41,7 +39,7 @@ public class WriterEncryptionGroup
         return nodes;
     }
 
-    public Optional<Slice> getKeyMetadata()
+    public Slice getKeyMetadata()
     {
         return keyMetadata;
     }

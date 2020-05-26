@@ -55,4 +55,10 @@ public class TestingEncryptionLibrary
         ByteBuffer decodedByteBuffer = DECODER.decode(encoded);
         return Slices.wrappedBuffer(decodedByteBuffer);
     }
+
+    @Override
+    public int getMaxEncryptedLength(Slice keyMetadata, int unencryptedLength)
+    {
+        return keyMetadata.length() + 4 * (unencryptedLength + 2) / 3;
+    }
 }

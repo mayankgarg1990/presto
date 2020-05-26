@@ -24,41 +24,47 @@ import java.util.Optional;
 import static com.google.common.base.Verify.verify;
 import static java.util.Objects.requireNonNull;
 
-public class GroupDwrfDecryptors
+public class DwrfEncryptionInfo
 {
-    private final List<DwrfDecryptor> dwrfDecryptors;
+    public static final DwrfEncryptionInfo UNENCRYPTED = new DwrfEncryptionInfo(ImmutableList.of(), ImmutableList.of(), ImmutableMap.of());
+    private final List<DwrfEncryptor> dwrfEncryptors;
     private final List<Slice> keyMetadatas;
     private final Map<Integer, Integer> nodeToGroupMap;
 
-    public GroupDwrfDecryptors(List<DwrfDecryptor> dwrfDecryptors, List<Slice> keyMetadatas, Map<Integer, Integer> nodeToGroupMap)
+    public DwrfEncryptionInfo(List<DwrfEncryptor> dwrfEncryptors, List<Slice> keyMetadatas, Map<Integer, Integer> nodeToGroupMap)
     {
-        this.dwrfDecryptors = ImmutableList.copyOf(requireNonNull(dwrfDecryptors, "dwrfDecryptors is null"));
+        this.dwrfEncryptors = ImmutableList.copyOf(requireNonNull(dwrfEncryptors, "dwrfDecryptors is null"));
         this.keyMetadatas = ImmutableList.copyOf(requireNonNull(keyMetadatas, "keyMetadatas is null"));
         this.nodeToGroupMap = ImmutableMap.copyOf(requireNonNull(nodeToGroupMap, "nodeToGroupMap is null"));
     }
 
-    public static GroupDwrfDecryptors createGroupDwrfDecryptors(DwrfDecryptorProvider decryptorProvider, List<Slice> keyMetadatas)
+    public static DwrfEncryptionInfo createDwrfEncryptionInfo(DwrfDecryptorProvider decryptorProvider, List<Slice> keyMetadatas)
     {
-        ImmutableList.Builder<DwrfDecryptor> decryptorsBuilder = ImmutableList.builder();
+        ImmutableList.Builder<DwrfEncryptor> decryptorsBuilder = ImmutableList.builder();
         for (Slice keyMetadata : keyMetadatas) {
             decryptorsBuilder.add(decryptorProvider.createDecryptor(keyMetadata));
         }
 
-        return new GroupDwrfDecryptors(decryptorsBuilder.build(), keyMetadatas, decryptorProvider.getNodeToGroupMap());
+        return new DwrfEncryptionInfo(decryptorsBuilder.build(), keyMetadatas, decryptorProvider.getNodeToGroupMap());
     }
 
-    public DwrfDecryptor getDecryptorByGroupId(int groupId)
+    public DwrfEncryptor getEncryptorByGroupId(int groupId)
     {
-        verify(groupId < dwrfDecryptors.size(), "groupId exceeds the size of dwrfDecryptors");
-        return dwrfDecryptors.get(groupId);
+        verify(groupId < dwrfEncryptors.size(), "groupId exceeds the size of dwrfDecryptors");
+        return dwrfEncryptors.get(groupId);
     }
 
-    public Optional<DwrfDecryptor> getDecryptorByNodeId(int nodeId)
+    public Optional<DwrfEncryptor> getEncryptorByNodeId(int nodeId)
     {
         if (!nodeToGroupMap.containsKey(nodeId)) {
             return Optional.empty();
         }
-        return Optional.of(getDecryptorByGroupId(nodeToGroupMap.get(nodeId)));
+        return Optional.of(getEncryptorByGroupId(nodeToGroupMap.get(nodeId)));
+    }
+
+    public Optional<Integer> getGroupByNodeId(int nodeId)
+    {
+        return Optional.ofNullable(nodeToGroupMap.get(nodeId));
     }
 
     public List<Slice> getKeyMetadatas()

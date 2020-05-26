@@ -20,10 +20,10 @@ import static java.util.Objects.requireNonNull;
 public class DecryptingDecompressor
         implements OrcDecompressor
 {
-    private final DwrfDecryptor decryptor;
+    private final DwrfEncryptor decryptor;
     private final OrcDecompressor decompressor;
 
-    public DecryptingDecompressor(DwrfDecryptor decryptor, OrcDecompressor decompressor)
+    public DecryptingDecompressor(DwrfEncryptor decryptor, OrcDecompressor decompressor)
     {
         this.decompressor = requireNonNull(decompressor, "decompressor is null");
         this.decryptor = requireNonNull(decryptor, "decryptor is null");

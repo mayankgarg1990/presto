@@ -20,4 +20,6 @@ public interface EncryptionLibrary
     Slice encrypt(Slice keyMetadata, byte[] input, int offset, int length);
 
     Slice decrypt(Slice keyMetadata, byte[] input, int offset, int length);
+
+    int getMaxEncryptedLength(Slice keyMetadata, int unencryptedLength);
 }

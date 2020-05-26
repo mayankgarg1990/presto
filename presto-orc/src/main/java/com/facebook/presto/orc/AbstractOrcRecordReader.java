@@ -53,7 +53,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static com.facebook.presto.orc.AbstractOrcRecordReader.LinearProbeRangeFinder.createTinyStripesRangeFinder;
-import static com.facebook.presto.orc.GroupDwrfDecryptors.createGroupDwrfDecryptors;
+import static com.facebook.presto.orc.DwrfEncryptionInfo.createDwrfEncryptionInfo;
 import static com.facebook.presto.orc.OrcDataSourceUtils.mergeAdjacentDiskRanges;
 import static com.facebook.presto.orc.OrcReader.BATCH_SIZE_GROWTH_FACTOR;
 import static com.facebook.presto.orc.OrcReader.MAX_BATCH_SIZE;
@@ -90,7 +90,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
     private final StripeReader stripeReader;
     private int currentStripe = -1;
     private OrcAggregatedMemoryContext currentStripeSystemMemoryContext;
-    private Optional<GroupDwrfDecryptors> currentGroupDwrfDecryptors = Optional.empty();
+    private Optional<DwrfEncryptionInfo> currentGroupDwrfDecryptors = Optional.empty();
 
     private final long fileRowCount;
     private final List<Long> stripeFilePositions;
@@ -548,7 +548,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
         if ((!stripeDecryptionKeyMetadata.isEmpty() && !currentGroupDwrfDecryptors.isPresent())
                 || (currentGroupDwrfDecryptors.isPresent() && !stripeDecryptionKeyMetadata.equals(currentGroupDwrfDecryptors.get().getKeyMetadatas()))) {
             verify(decryptorProvider.isPresent(), "decryptorProvider is absent");
-            currentGroupDwrfDecryptors = Optional.of(createGroupDwrfDecryptors(decryptorProvider.get(), stripeDecryptionKeyMetadata));
+            currentGroupDwrfDecryptors = Optional.of(createDwrfEncryptionInfo(decryptorProvider.get(), stripeDecryptionKeyMetadata));
         }
 
         Stripe stripe = stripeReader.readStripe(stripeInformation, currentStripeSystemMemoryContext, currentGroupDwrfDecryptors);

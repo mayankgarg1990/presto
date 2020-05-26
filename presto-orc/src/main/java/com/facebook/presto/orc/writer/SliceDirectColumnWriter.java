@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.type.Type;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.ByteArrayStreamCheckpoint;
@@ -72,16 +73,23 @@ public class SliceDirectColumnWriter
 
     private boolean closed;
 
-    public SliceDirectColumnWriter(int column, Type type, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, Supplier<SliceColumnStatisticsBuilder> statisticsBuilderSupplier)
+    public SliceDirectColumnWriter(
+            int column,
+            Type type,
+            CompressionKind compression,
+            Optional<DwrfEncryptor> dwrfEncryptor,
+            int bufferSize,
+            OrcEncoding orcEncoding,
+            Supplier<SliceColumnStatisticsBuilder> statisticsBuilderSupplier)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
         this.columnEncoding = new ColumnEncoding(orcEncoding == DWRF ? DIRECT : DIRECT_V2, 0);
-        this.lengthStream = createLengthOutputStream(compression, bufferSize, orcEncoding);
-        this.dataStream = new ByteArrayOutputStream(compression, bufferSize);
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.lengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
+        this.dataStream = new ByteArrayOutputStream(compression, dwrfEncryptor, bufferSize);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
         this.statisticsBuilderSupplier = statisticsBuilderSupplier;
         statisticsBuilder = statisticsBuilderSupplier.get();
     }

@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.facebook.airlift.json.JsonCodec.jsonCodec;
 import static com.facebook.presto.orc.OrcEncoding.ORC;
@@ -98,6 +99,7 @@ public class OrcFileWriter
                     storageTypes,
                     ORC,
                     requireNonNull(compression, "compression is null"),
+                    Optional.empty(),
                     DEFAULT_OPTION,
                     userMetadata,
                     DEFAULT_STORAGE_TIMEZONE,

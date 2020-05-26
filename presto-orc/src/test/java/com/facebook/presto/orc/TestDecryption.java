@@ -126,15 +126,9 @@ public class TestDecryption
     @Test
     public void testCreateNodeToGroupMap()
     {
-        List<EncryptionGroup> encryptionGroups = ImmutableList.of(
-                new EncryptionGroup(
-                        ImmutableList.of(1, 3),
-                        Optional.empty(),
-                        Slices.EMPTY_SLICE),
-                new EncryptionGroup(
-                        ImmutableList.of(4),
-                        Optional.empty(),
-                        Slices.EMPTY_SLICE));
+        List<List<Integer>> encryptionGroups = ImmutableList.of(
+                ImmutableList.of(1, 3),
+                ImmutableList.of(4));
 
         List<OrcType> types = ImmutableList.of(ROW_TYPE, INT_TYPE, LIST_TYPE, INT_TYPE, MAP_TYPE, INT_TYPE, INT_TYPE);
         Map<Integer, Integer> actual = createNodeToGroupMap(encryptionGroups, types);

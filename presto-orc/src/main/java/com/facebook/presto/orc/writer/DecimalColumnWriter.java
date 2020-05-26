@@ -85,7 +85,7 @@ public class DecimalColumnWriter
         this.columnEncoding = new ColumnEncoding(DIRECT_V2, 0);
         this.dataStream = new DecimalOutputStream(compression, bufferSize);
         this.scaleStream = new LongOutputStreamV2(compression, bufferSize, true, SECONDARY);
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.presentStream = new PresentOutputStream(compression, Optional.empty(), bufferSize);
         if (this.type.isShort()) {
             shortDecimalStatisticsBuilder = new ShortDecimalStatisticsBuilder(this.type.getScale());
         }

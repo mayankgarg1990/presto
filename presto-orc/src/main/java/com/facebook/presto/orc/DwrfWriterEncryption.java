@@ -42,4 +42,9 @@ public class DwrfWriterEncryption
     {
         return intermediateEncryptionKey;
     }
+
+    public KeyProvider getKeyProvider()
+    {
+        return keyProvider;
+    }
 }

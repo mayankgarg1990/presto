@@ -15,6 +15,7 @@ package com.facebook.presto.orc.writer;
 
 import com.facebook.presto.common.block.Block;
 import com.facebook.presto.common.block.ColumnarArray;
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcEncoding;
 import com.facebook.presto.orc.checkpoint.BooleanStreamCheckpoint;
 import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
@@ -67,15 +68,15 @@ public class ListColumnWriter
 
     private boolean closed;
 
-    public ListColumnWriter(int column, CompressionKind compression, int bufferSize, OrcEncoding orcEncoding, ColumnWriter elementWriter)
+    public ListColumnWriter(int column, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize, OrcEncoding orcEncoding, ColumnWriter elementWriter)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
         this.columnEncoding = new ColumnEncoding(orcEncoding == DWRF ? DIRECT : DIRECT_V2, 0);
         this.elementWriter = requireNonNull(elementWriter, "elementWriter is null");
-        this.lengthStream = createLengthOutputStream(compression, bufferSize, orcEncoding);
-        this.presentStream = new PresentOutputStream(compression, bufferSize);
+        this.lengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
+        this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
     }
 
     @Override
