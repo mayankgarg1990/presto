@@ -38,14 +38,19 @@ public class DwrfEncryptionInfo
         this.nodeToGroupMap = ImmutableMap.copyOf(requireNonNull(nodeToGroupMap, "nodeToGroupMap is null"));
     }
 
-    public static DwrfEncryptionInfo createDwrfEncryptionInfo(DwrfDecryptorProvider decryptorProvider, List<Slice> keyMetadatas)
+    public static DwrfEncryptionInfo createDwrfEncryptionInfo(DwrfDecryptorProvider decryptorProvider, List<Slice> dataKeyMetadatas, List<Slice> intermediateKeyMetadatas)
     {
         ImmutableList.Builder<DwrfEncryptor> decryptorsBuilder = ImmutableList.builder();
-        for (Slice keyMetadata : keyMetadatas) {
-            decryptorsBuilder.add(decryptorProvider.createDecryptor(keyMetadata));
+        verify(dataKeyMetadatas.size() == intermediateKeyMetadatas.size(), "length of keyMetadata lists do not match");
+        for (int i = 0; i < dataKeyMetadatas.size(); i++) {
+            DwrfEncryptor keyDecryptor = decryptorProvider.createDecryptor(intermediateKeyMetadatas.get(i));
+            Slice encryptedDataKey = dataKeyMetadatas.get(i);
+            verify(encryptedDataKey.hasByteArray(), "key not backed by byte array");
+            Slice decryptedKeyMetadata = keyDecryptor.decrypt(encryptedDataKey.getBytes(), encryptedDataKey.byteArrayOffset(), encryptedDataKey.length());
+            decryptorsBuilder.add(decryptorProvider.createDecryptor(decryptedKeyMetadata));
         }
 
-        return new DwrfEncryptionInfo(decryptorsBuilder.build(), keyMetadatas, decryptorProvider.getNodeToGroupMap());
+        return new DwrfEncryptionInfo(decryptorsBuilder.build(), dataKeyMetadatas, decryptorProvider.getNodeToGroupMap());
     }
 
     public DwrfEncryptor getEncryptorByGroupId(int groupId)

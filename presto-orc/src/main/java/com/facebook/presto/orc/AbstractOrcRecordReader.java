@@ -80,6 +80,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
     private final Set<Integer> presentColumns;
     private final long maxBlockBytes;
     private final Optional<DwrfDecryptorProvider> decryptorProvider;
+    private final List<Slice> intermediateKeyMetadata;
     private long currentPosition;
     private long currentStripePosition;
     private int currentBatchSize;
@@ -129,6 +130,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
             List<OrcType> types,
             Optional<OrcDecompressor> decompressor,
             Optional<DwrfDecryptorProvider> decryptorProvider,
+            List<Slice> intermediateKeyMetadata,
             int rowsInRowGroup,
             DateTimeZone hiveStorageTimeZone,
             PostScript.HiveWriterVersion hiveWriterVersion,
@@ -151,6 +153,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
         requireNonNull(types, "types is null");
         requireNonNull(decompressor, "decompressor is null");
         requireNonNull(decryptorProvider, "decryptorProvider is null");
+        requireNonNull(intermediateKeyMetadata, "intermediateKeyMetadata is null");
         requireNonNull(hiveStorageTimeZone, "hiveStorageTimeZone is null");
         requireNonNull(userMetadata, "userMetadata is null");
         requireNonNull(systemMemoryUsage, "systemMemoryUsage is null");
@@ -239,6 +242,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
                 cacheable);
 
         this.decryptorProvider = decryptorProvider;
+        this.intermediateKeyMetadata = ImmutableList.copyOf(intermediateKeyMetadata);
 
         this.streamReaders = requireNonNull(streamReaders, "streamReaders is null");
         for (int columnId = 0; columnId < root.getFieldCount(); columnId++) {
@@ -548,7 +552,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
         if ((!stripeDecryptionKeyMetadata.isEmpty() && !currentGroupDwrfDecryptors.isPresent())
                 || (currentGroupDwrfDecryptors.isPresent() && !stripeDecryptionKeyMetadata.equals(currentGroupDwrfDecryptors.get().getKeyMetadatas()))) {
             verify(decryptorProvider.isPresent(), "decryptorProvider is absent");
-            currentGroupDwrfDecryptors = Optional.of(createDwrfEncryptionInfo(decryptorProvider.get(), stripeDecryptionKeyMetadata));
+            currentGroupDwrfDecryptors = Optional.of(createDwrfEncryptionInfo(decryptorProvider.get(), stripeDecryptionKeyMetadata, intermediateKeyMetadata));
         }
 
         Stripe stripe = stripeReader.readStripe(stripeInformation, currentStripeSystemMemoryContext, currentGroupDwrfDecryptors);
