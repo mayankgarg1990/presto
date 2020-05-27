@@ -43,7 +43,8 @@ public class TestSliceDictionaryColumnWriter
                 Optional.empty(),
                 toIntExact(DEFAULT_MAX_COMPRESSION_BUFFER_SIZE.toBytes()),
                 OrcEncoding.ORC,
-                DEFAULT_MAX_STRING_STATISTICS_LIMIT);
+                DEFAULT_MAX_STRING_STATISTICS_LIMIT,
+                OrcEncoding.ORC.createMetadataWriter());
 
         // a single row group exceeds 2G after direct conversion
         byte[] value = new byte[megabytes(1)];

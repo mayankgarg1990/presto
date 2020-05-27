@@ -85,6 +85,11 @@ public class Stream
         return sequence;
     }
 
+    public Optional<Long> getOffset()
+    {
+        return offset;
+    }
+
     @Override
     public String toString()
     {
@@ -94,6 +99,18 @@ public class Stream
                 .add("length", length)
                 .add("useVInts", useVInts)
                 .add("sequence", sequence)
+                .add("offset", offset)
                 .toString();
+    }
+
+    public Stream withOffset(long offset)
+    {
+        return new Stream(
+                this.column,
+                this.streamKind,
+                this.length,
+                this.useVInts,
+                this.sequence,
+                Optional.of(offset));
     }
 }

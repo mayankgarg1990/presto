@@ -55,7 +55,7 @@ public class OrcBatchRecordReader
             long splitLength,
             List<OrcType> types,
             Optional<OrcDecompressor> decompressor,
-            Optional<DwrfDecryptorProvider> decryptorProvider,
+            Optional<DwrfEncryptorProvider> decryptorProvider,
             List<Slice> intermediateKeyMetadata,
             int rowsInRowGroup,
             DateTimeZone hiveStorageTimeZone,

@@ -25,13 +25,17 @@ public class WriterEncryptionGroup
     // Sub tree is identified by its root id
     private final List<Integer> nodes;
 
-    // key metadata
-    private final Slice keyMetadata;
+    // key metadata for encrypting the dataKeyMetadata
+    private final Slice intermediateKeyMetadata;
 
-    public WriterEncryptionGroup(List<Integer> nodes, Slice keyMetadata)
+    // key metadata for encrypting hte data
+    private final Slice dataKeyMetadata;
+
+    public WriterEncryptionGroup(List<Integer> nodes, Slice intermediateKeyMetadata, Slice dataKeyMetadata)
     {
         this.nodes = requireNonNull(nodes, "nodes is null");
-        this.keyMetadata = requireNonNull(keyMetadata, "keyMetadata is null");
+        this.dataKeyMetadata = requireNonNull(dataKeyMetadata, "dataKeyMetadata is null");
+        this.intermediateKeyMetadata = requireNonNull(intermediateKeyMetadata, "intermediateKeyMetadata is null");
     }
 
     public List<Integer> getNodes()
@@ -39,8 +43,13 @@ public class WriterEncryptionGroup
         return nodes;
     }
 
-    public Slice getKeyMetadata()
+    public Slice getDataKeyMetadata()
     {
-        return keyMetadata;
+        return dataKeyMetadata;
+    }
+
+    public Slice getIntermediateKeyMetadata()
+    {
+        return intermediateKeyMetadata;
     }
 }

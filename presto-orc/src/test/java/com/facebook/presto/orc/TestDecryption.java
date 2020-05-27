@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static com.facebook.presto.orc.AbstractOrcRecordReader.getDecryptionKeyMetadata;
-import static com.facebook.presto.orc.DwrfDecryptorProvider.createNodeToGroupMap;
+import static com.facebook.presto.orc.DwrfEncryptorProvider.createNodeToGroupMap;
 import static com.facebook.presto.orc.OrcReader.validateEncryption;
 import static com.facebook.presto.orc.metadata.OrcType.OrcTypeKind.INT;
 import static com.facebook.presto.orc.metadata.OrcType.OrcTypeKind.LIST;
@@ -67,14 +67,14 @@ public class TestDecryption
         Optional<DwrfEncryption> encryption = Optional.of(new DwrfEncryption(KeyProvider.UNKNOWN, encryptionGroups));
 
         Footer footer = createFooterWithEncryption(ImmutableList.of(A_STRIPE, NO_KEYS_STRIPE), encryption);
-        validateEncryption(footer, new OrcDataSourceId("1"));
+        validateEncryption(footer, A_KEYS, new OrcDataSourceId("1"));
     }
 
     @Test
     public void testValidateUnencrypted()
     {
         Footer footer = createFooterWithEncryption(ImmutableList.of(NO_KEYS_STRIPE), Optional.empty());
-        validateEncryption(footer, new OrcDataSourceId("1"));
+        validateEncryption(footer, ImmutableList.of(), new OrcDataSourceId("1"));
     }
 
     @Test(expectedExceptions = OrcCorruptionException.class)
@@ -92,7 +92,7 @@ public class TestDecryption
 
         Optional<DwrfEncryption> encryption = Optional.of(new DwrfEncryption(KeyProvider.UNKNOWN, encryptionGroups));
         Footer footer = createFooterWithEncryption(ImmutableList.of(NO_KEYS_STRIPE), encryption);
-        validateEncryption(footer, new OrcDataSourceId("1"));
+        validateEncryption(footer, A_KEYS, new OrcDataSourceId("1"));
     }
 
     @Test(expectedExceptions = OrcCorruptionException.class)
@@ -106,7 +106,7 @@ public class TestDecryption
 
         Optional<DwrfEncryption> encryption = Optional.of(new DwrfEncryption(KeyProvider.UNKNOWN, encryptionGroups));
         Footer footer = createFooterWithEncryption(ImmutableList.of(A_STRIPE), encryption);
-        validateEncryption(footer, new OrcDataSourceId("1"));
+        validateEncryption(footer, ImmutableList.of(utf8Slice("key")), new OrcDataSourceId("1"));
     }
 
     private Footer createFooterWithEncryption(List<StripeInformation> stripes, Optional<DwrfEncryption> encryption)

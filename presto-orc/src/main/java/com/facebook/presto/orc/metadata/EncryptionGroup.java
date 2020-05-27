@@ -44,4 +44,14 @@ public class EncryptionGroup
     {
         return nodes;
     }
+
+    public Optional<Slice> getKeyMetadata()
+    {
+        return keyMetadata;
+    }
+
+    public Slice getStatistics()
+    {
+        return statistics;
+    }
 }

@@ -14,7 +14,6 @@
 package com.facebook.presto.orc;
 
 import com.facebook.presto.orc.metadata.KeyProvider;
-import io.airlift.slice.Slice;
 
 import java.util.List;
 
@@ -23,24 +22,17 @@ import static java.util.Objects.requireNonNull;
 public class DwrfWriterEncryption
 {
     private final KeyProvider keyProvider;
-    private final Slice intermediateEncryptionKey;
     private final List<WriterEncryptionGroup> writerEncryptionGroups;
 
-    public DwrfWriterEncryption(KeyProvider keyProvider, Slice intermediateEncryptionKey, List<WriterEncryptionGroup> writerEncryptionGroups)
+    public DwrfWriterEncryption(KeyProvider keyProvider, List<WriterEncryptionGroup> writerEncryptionGroups)
     {
         this.keyProvider = requireNonNull(keyProvider, "keyProvider is null");
-        this.intermediateEncryptionKey = requireNonNull(intermediateEncryptionKey, "intermediateEncryptionKey is null");
         this.writerEncryptionGroups = requireNonNull(writerEncryptionGroups, "writerEncryptionGroups is null");
     }
 
     public List<WriterEncryptionGroup> getWriterEncryptionGroups()
     {
         return writerEncryptionGroups;
-    }
-
-    public Slice getIntermediateEncryptionKey()
-    {
-        return intermediateEncryptionKey;
     }
 
     public KeyProvider getKeyProvider()

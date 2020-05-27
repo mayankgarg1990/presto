@@ -79,7 +79,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
     private final long splitLength;
     private final Set<Integer> presentColumns;
     private final long maxBlockBytes;
-    private final Optional<DwrfDecryptorProvider> decryptorProvider;
+    private final Optional<DwrfEncryptorProvider> decryptorProvider;
     private final List<Slice> intermediateKeyMetadata;
     private long currentPosition;
     private long currentStripePosition;
@@ -129,7 +129,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
             long splitLength,
             List<OrcType> types,
             Optional<OrcDecompressor> decompressor,
-            Optional<DwrfDecryptorProvider> decryptorProvider,
+            Optional<DwrfEncryptorProvider> decryptorProvider,
             List<Slice> intermediateKeyMetadata,
             int rowsInRowGroup,
             DateTimeZone hiveStorageTimeZone,
@@ -550,7 +550,7 @@ abstract class AbstractOrcRecordReader<T extends StreamReader>
         // or it has been set, but we have new decryption keys,
         // set currentGroupDwrfDecryptors
         if ((!stripeDecryptionKeyMetadata.isEmpty() && !currentGroupDwrfDecryptors.isPresent())
-                || (currentGroupDwrfDecryptors.isPresent() && !stripeDecryptionKeyMetadata.equals(currentGroupDwrfDecryptors.get().getKeyMetadatas()))) {
+                || (currentGroupDwrfDecryptors.isPresent() && !stripeDecryptionKeyMetadata.equals(currentGroupDwrfDecryptors.get().getEncryptedKeyMetadatas()))) {
             verify(decryptorProvider.isPresent(), "decryptorProvider is absent");
             currentGroupDwrfDecryptors = Optional.of(createDwrfEncryptionInfo(decryptorProvider.get(), stripeDecryptionKeyMetadata, intermediateKeyMetadata));
         }

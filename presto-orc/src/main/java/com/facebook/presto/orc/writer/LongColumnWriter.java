@@ -22,6 +22,7 @@ import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
 import com.facebook.presto.orc.metadata.CompressionKind;
+import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
 import com.facebook.presto.orc.metadata.Stream.StreamKind;
@@ -65,6 +66,7 @@ public class LongColumnWriter
     private final PresentOutputStream presentStream;
 
     private final List<ColumnStatistics> rowGroupColumnStatistics = new ArrayList<>();
+    private final CompressedMetadataWriter metadataWriter;
     private long columnStatisticsRetainedSizeInBytes;
 
     private final Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier;
@@ -79,10 +81,12 @@ public class LongColumnWriter
             Optional<DwrfEncryptor> dwrfEncryptor,
             int bufferSize,
             OrcEncoding orcEncoding,
-            Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier)
+            Supplier<LongValueStatisticsBuilder> statisticsBuilderSupplier,
+            MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
         requireNonNull(dwrfEncryptor, "dwrfEncryptor is null");
+        requireNonNull(metadataWriter, "metadataWriter is null");
         this.column = column;
         this.type = requireNonNull(type, "type is null");
         this.compressed = requireNonNull(compression, "compression is null") != NONE;
@@ -95,6 +99,7 @@ public class LongColumnWriter
             this.dataStream = new LongOutputStreamV2(compression, bufferSize, true, DATA);
         }
         this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
+        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, compression, dwrfEncryptor, bufferSize);
         this.statisticsBuilderSupplier = requireNonNull(statisticsBuilderSupplier, "statisticsBuilderSupplier is null");
         this.statisticsBuilder = statisticsBuilderSupplier.get();
     }
@@ -160,7 +165,7 @@ public class LongColumnWriter
     }
 
     @Override
-    public List<StreamDataOutput> getIndexStreams(CompressedMetadataWriter metadataWriter)
+    public List<StreamDataOutput> getIndexStreams()
             throws IOException
     {
         checkState(closed);

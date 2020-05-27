@@ -17,29 +17,32 @@ import com.facebook.presto.orc.metadata.DwrfEncryption;
 import com.facebook.presto.orc.metadata.EncryptionGroup;
 import com.facebook.presto.orc.metadata.KeyProvider;
 import com.facebook.presto.orc.metadata.OrcType;
+import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.slice.Slice;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
-public class DwrfDecryptorProvider
+public class DwrfEncryptorProvider
 {
     private final Map<Integer, Integer> nodeToGroupMap;
     private final EncryptionLibrary encryptionLibrary;
 
-    private DwrfDecryptorProvider(EncryptionLibrary encryptionLibrary, Map<Integer, Integer> nodeToGroupMap)
+    private DwrfEncryptorProvider(EncryptionLibrary encryptionLibrary, Map<Integer, Integer> nodeToGroupMap)
     {
         this.encryptionLibrary = requireNonNull(encryptionLibrary, "encryption is null");
         this.nodeToGroupMap = requireNonNull(nodeToGroupMap, "nodeToGroupMap is null");
     }
 
-    public static DwrfDecryptorProvider createDwrfDecryptorProvider(DwrfEncryption dwrfEncryption, List<OrcType> types)
+    public static DwrfEncryptorProvider createDwrfEncryptorProvider(DwrfEncryption dwrfEncryption, List<OrcType> types)
     {
-        return new DwrfDecryptorProvider(
+        return new DwrfEncryptorProvider(
                 getDecryptionLibrary(dwrfEncryption.getKeyProvider()),
                 createNodeToGroupMap(
                         dwrfEncryption.getEncryptionGroups().stream()
@@ -48,19 +51,40 @@ public class DwrfDecryptorProvider
                         types));
     }
 
+    public static DwrfEncryptorProvider createDwrfEncryptorProvider(DwrfWriterEncryption dwrfEncryption, List<OrcType> types)
+    {
+        return new DwrfEncryptorProvider(
+                getDecryptionLibrary(dwrfEncryption.getKeyProvider()),
+                createNodeToGroupMap(
+                        dwrfEncryption.getWriterEncryptionGroups().stream()
+                                .map(WriterEncryptionGroup::getNodes)
+                                .collect(toImmutableList()),
+                        types));
+    }
+
     public static Map<Integer, Integer> createNodeToGroupMap(List<List<Integer>> encryptionGroups, List<OrcType> types)
     {
-        ImmutableMap.Builder<Integer, Integer> nodeToGroupMapBuilder = ImmutableMap.builder();
+        // We don't use an immutableMap builder so that we can check what's already been added
+        Map nodeToGroupMapBuilder = new HashMap();
         for (int groupId = 0; groupId < encryptionGroups.size(); groupId++) {
-            // if group has key, use that.  otherwise use from stripe
-            for (Integer rootId : encryptionGroups.get(groupId)) {
-                OrcType type = types.get(rootId);
-                for (int childId = rootId; childId < rootId + type.getFieldCount() + 1; childId++) {
-                    nodeToGroupMapBuilder.put(childId, groupId);
-                }
+            for (Integer nodeId : encryptionGroups.get(groupId)) {
+                createNodeToGroupMap(groupId, nodeId, types, nodeToGroupMapBuilder);
             }
         }
-        return nodeToGroupMapBuilder.build();
+        return ImmutableMap.copyOf(nodeToGroupMapBuilder);
+    }
+
+    private static Map<Integer, Integer> createNodeToGroupMap(int groupId, int nodeId, List<OrcType> types, Map<Integer, Integer> nodeToGroupMapBuilder)
+    {
+        if (nodeToGroupMapBuilder.containsKey(nodeId) && nodeToGroupMapBuilder.get(nodeId) != groupId) {
+            throw new VerifyException(format("Column or sub-column %s belongs to more than one encryption group: %s and %s", nodeId, nodeToGroupMapBuilder.get(nodeId), groupId));
+        }
+        nodeToGroupMapBuilder.put(nodeId, groupId);
+        OrcType type = types.get(nodeId);
+        for (int childId = nodeId + 1; childId < nodeId + type.getFieldCount() + 1; childId++) {
+            createNodeToGroupMap(groupId, childId, types, nodeToGroupMapBuilder);
+        }
+        return nodeToGroupMapBuilder;
     }
 
     private static EncryptionLibrary getDecryptionLibrary(KeyProvider keyProvider)
@@ -85,7 +109,7 @@ public class DwrfDecryptorProvider
         return new TestingEncryptionLibrary();
     }
 
-    public DwrfEncryptor createDecryptor(Slice keyMetadata)
+    public DwrfEncryptor createEncryptor(Slice keyMetadata)
     {
         return new DwrfEncryptor(keyMetadata, encryptionLibrary);
     }

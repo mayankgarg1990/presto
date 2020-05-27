@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.orc.metadata;
 
+import com.facebook.presto.orc.DwrfEncryptor;
 import com.facebook.presto.orc.OrcOutputBuffer;
 import io.airlift.slice.DynamicSliceOutput;
 import io.airlift.slice.Slice;
@@ -22,16 +23,17 @@ import java.util.List;
 import java.util.Optional;
 
 import static java.lang.Math.toIntExact;
+import static java.util.Objects.requireNonNull;
 
 public class CompressedMetadataWriter
 {
     private final MetadataWriter metadataWriter;
     private final OrcOutputBuffer buffer;
 
-    public CompressedMetadataWriter(MetadataWriter metadataWriter, CompressionKind compression, int bufferSize)
+    public CompressedMetadataWriter(MetadataWriter metadataWriter, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize)
     {
-        this.metadataWriter = metadataWriter;
-        this.buffer = new OrcOutputBuffer(compression, Optional.empty(), bufferSize);
+        this.metadataWriter = requireNonNull(metadataWriter, "metadataWriter is null");
+        this.buffer = new OrcOutputBuffer(compression, dwrfEncryptor, bufferSize);
     }
 
     public List<Integer> getOrcMetadataVersion()

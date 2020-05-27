@@ -31,6 +31,7 @@ import com.facebook.presto.orc.metadata.StripeFooter;
 import com.facebook.presto.orc.metadata.StripeInformation;
 import com.facebook.presto.orc.metadata.statistics.ColumnStatistics;
 import com.facebook.presto.orc.metadata.statistics.HiveBloomFilter;
+import com.facebook.presto.orc.protobuf.InvalidProtocolBufferException;
 import com.facebook.presto.orc.stream.InputStreamSource;
 import com.facebook.presto.orc.stream.InputStreamSources;
 import com.facebook.presto.orc.stream.OrcInputStream;
@@ -128,21 +129,21 @@ public class StripeReader
         // read the stripe footer
         StripeFooter stripeFooter = readStripeFooter(stripeId, stripe, systemMemoryUsage);
 
-        List<ColumnEncoding> columnEncodings = stripeFooter.getColumnEncodings();
         // get streams for selected columns
-        Map<StreamId, Stream> streams = new HashMap<>();
-        boolean hasRowGroupDictionary = addIncludedStreams(columnEncodings, stripeFooter.getStreams(), streams);
+        List<Stream> allStreams = new ArrayList<>(stripeFooter.getStreams());
+        List<ColumnEncoding> columnEncodings = new ArrayList<>(stripeFooter.getColumnEncodings());
+        Map<StreamId, Stream> includedStreams = new HashMap<>();
+        boolean hasRowGroupDictionary = addIncludedStreams(columnEncodings, stripeFooter.getStreams(), includedStreams);
 
-        // if streams doesn't have all included orcColumns, some included columns may be encrypted
+        //  some included columns may be encrypted
         // get encrypted streams
-        if (streams.size() < includedOrcColumns.size() && decryptors.isPresent()) {
+        if (decryptors.isPresent()) {
             List<Slice> encryptedEncryptionGroups = stripeFooter.getStripeEncryptionGroups();
             for (int i = 0; i < encryptedEncryptionGroups.size(); i++) {
-                DwrfEncryptor decryptor = decryptors.get().getEncryptorByGroupId(i);
-                Slice encryptedGroup = encryptedEncryptionGroups.get(i);
-                Slice decryptedBytes = decryptor.decrypt(encryptedGroup.byteArray(), encryptedGroup.byteArrayOffset(), encryptedGroup.length());
-                StripeEncryptionGroup stripeEncryptionGroup = toStripeEncryptionGroup(decryptedBytes.getBytes(encryptedGroup.byteArrayOffset(), encryptedGroup.length()), types);
-                hasRowGroupDictionary = hasRowGroupDictionary || addIncludedStreams(stripeEncryptionGroup.getColumnEncodings(), stripeEncryptionGroup.getStreams(), streams);
+                StripeEncryptionGroup stripeEncryptionGroup = getStripeEncryptionGroup(decryptors.get().getEncryptorByGroupId(i), encryptedEncryptionGroups.get(i));
+                allStreams.addAll(stripeEncryptionGroup.getStreams());
+                columnEncodings.addAll(stripeEncryptionGroup.getColumnEncodings());
+                hasRowGroupDictionary = hasRowGroupDictionary || addIncludedStreams(stripeEncryptionGroup.getColumnEncodings(), stripeEncryptionGroup.getStreams(), includedStreams);
             }
         }
 
@@ -150,17 +151,17 @@ public class StripeReader
         boolean invalidCheckPoint = false;
         if ((stripe.getNumberOfRows() > rowsInRowGroup) || hasRowGroupDictionary) {
             // determine ranges of the stripe to read
-            Map<StreamId, DiskRange> diskRanges = getDiskRanges(stripeFooter.getStreams());
-            diskRanges = Maps.filterKeys(diskRanges, Predicates.in(streams.keySet()));
+            Map<StreamId, DiskRange> diskRanges = getDiskRanges(allStreams);
+            diskRanges = Maps.filterKeys(diskRanges, Predicates.in(includedStreams.keySet()));
 
             // read the file regions
             Map<StreamId, OrcInputStream> streamsData = readDiskRanges(stripeId, diskRanges, systemMemoryUsage, decryptors);
 
             // read the bloom filter for each column
-            Map<Integer, List<HiveBloomFilter>> bloomFilterIndexes = readBloomFilterIndexes(streams, streamsData);
+            Map<Integer, List<HiveBloomFilter>> bloomFilterIndexes = readBloomFilterIndexes(includedStreams, streamsData);
 
             // read the row index for each column
-            Map<StreamId, List<RowGroupIndex>> columnIndexes = readColumnIndexes(streams, streamsData, bloomFilterIndexes);
+            Map<StreamId, List<RowGroupIndex>> columnIndexes = readColumnIndexes(includedStreams, streamsData, bloomFilterIndexes);
             if (writeValidation.isPresent()) {
                 writeValidation.get().validateRowGroupStatistics(orcDataSource.getId(), stripe.getOffset(), columnIndexes);
             }
@@ -176,16 +177,16 @@ public class StripeReader
             }
 
             // value streams
-            Map<StreamId, ValueInputStream<?>> valueStreams = createValueStreams(streams, streamsData, columnEncodings);
+            Map<StreamId, ValueInputStream<?>> valueStreams = createValueStreams(includedStreams, streamsData, columnEncodings);
 
             // build the dictionary streams
-            InputStreamSources dictionaryStreamSources = createDictionaryStreamSources(streams, valueStreams, columnEncodings);
+            InputStreamSources dictionaryStreamSources = createDictionaryStreamSources(includedStreams, valueStreams, columnEncodings);
 
             // build the row groups
             try {
                 List<RowGroup> rowGroups = createRowGroups(
                         stripe.getNumberOfRows(),
-                        streams,
+                        includedStreams,
                         valueStreams,
                         columnIndexes,
                         selectedRowGroups,
@@ -206,9 +207,9 @@ public class StripeReader
 
         // stripe only has one row group and no dictionary
         ImmutableMap.Builder<StreamId, DiskRange> diskRangesBuilder = ImmutableMap.builder();
-        for (Entry<StreamId, DiskRange> entry : getDiskRanges(stripeFooter.getStreams()).entrySet()) {
+        for (Entry<StreamId, DiskRange> entry : getDiskRanges(allStreams).entrySet()) {
             StreamId streamId = entry.getKey();
-            if (streams.keySet().contains(streamId)) {
+            if (includedStreams.keySet().contains(streamId)) {
                 diskRangesBuilder.put(entry);
             }
         }
@@ -218,7 +219,7 @@ public class StripeReader
         Map<StreamId, OrcInputStream> streamsData = readDiskRanges(stripeId, diskRanges, systemMemoryUsage, decryptors);
 
         long minAverageRowBytes = 0;
-        for (Entry<StreamId, Stream> entry : streams.entrySet()) {
+        for (Entry<StreamId, Stream> entry : includedStreams.entrySet()) {
             if (entry.getKey().getStreamKind() == ROW_INDEX) {
                 List<RowGroupIndex> rowGroupIndexes = metadataReader.readRowIndexes(hiveWriterVersion, streamsData.get(entry.getKey()));
                 checkState(rowGroupIndexes.size() == 1 || invalidCheckPoint, "expect a single row group or an invalid check point");
@@ -238,10 +239,10 @@ public class StripeReader
         }
 
         // value streams
-        Map<StreamId, ValueInputStream<?>> valueStreams = createValueStreams(streams, streamsData, columnEncodings);
+        Map<StreamId, ValueInputStream<?>> valueStreams = createValueStreams(includedStreams, streamsData, columnEncodings);
 
         // build the dictionary streams
-        InputStreamSources dictionaryStreamSources = createDictionaryStreamSources(streams, valueStreams, columnEncodings);
+        InputStreamSources dictionaryStreamSources = createDictionaryStreamSources(includedStreams, valueStreams, columnEncodings);
 
         // build the row group
         ImmutableMap.Builder<StreamId, InputStreamSource<?>> builder = ImmutableMap.builder();
@@ -251,6 +252,13 @@ public class StripeReader
         RowGroup rowGroup = new RowGroup(0, 0, stripe.getNumberOfRows(), minAverageRowBytes, new InputStreamSources(builder.build()));
 
         return new Stripe(stripe.getNumberOfRows(), columnEncodings, ImmutableList.of(rowGroup), dictionaryStreamSources);
+    }
+
+    private StripeEncryptionGroup getStripeEncryptionGroup(DwrfEncryptor decryptor, Slice encryptedGroup)
+            throws InvalidProtocolBufferException
+    {
+        Slice decryptedBytes = decryptor.decrypt(encryptedGroup.getBytes(), 0, encryptedGroup.length());
+        return toStripeEncryptionGroup(decryptedBytes.getBytes(), types);
     }
 
     /**
@@ -539,6 +547,9 @@ public class StripeReader
         long stripeOffset = 0;
         for (Stream stream : streams) {
             int streamLength = toIntExact(stream.getLength());
+            if (stream.getOffset().isPresent()) {
+                stripeOffset = stream.getOffset().get();
+            }
             // ignore zero byte streams
             if (streamLength > 0) {
                 streamDiskRanges.put(new StreamId(stream), new DiskRange(stripeOffset, streamLength));

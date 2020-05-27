@@ -47,7 +47,7 @@ public class TestingEncryptionLibrary
 
         byte[] key = new byte[keyMetadata.length()];
         inputBuffer.get(key);
-        verify(keyMetadata.equals(Slices.wrappedBuffer(key, 0, key.length)), "keys do not match");
+        verify(keyMetadata.equals(Slices.wrappedBuffer(key)), "keys do not match");
 
         ByteBuffer encoded = ByteBuffer.allocate(inputBuffer.remaining());
         encoded.put(inputBuffer);

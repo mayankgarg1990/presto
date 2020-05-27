@@ -40,6 +40,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.slice.Slices.utf8Slice;
 import static java.lang.Math.toIntExact;
+import static java.lang.String.format;
 
 public class DwrfMetadataWriter
         implements MetadataWriter
@@ -81,7 +82,7 @@ public class DwrfMetadataWriter
     public int writeFooter(SliceOutput output, Footer footer)
             throws IOException
     {
-        DwrfProto.Footer footerProtobuf = DwrfProto.Footer.newBuilder()
+        DwrfProto.Footer.Builder footerProtobuf = DwrfProto.Footer.newBuilder()
                 .setNumberOfRows(footer.getNumberOfRows())
                 .setRowIndexStride(footer.getRowsInRowGroup())
                 .addAllStripes(footer.getStripes().stream()
@@ -98,10 +99,13 @@ public class DwrfMetadataWriter
                         .collect(toImmutableList()))
                 .addAllMetadata(STATIC_METADATA.entrySet().stream()
                         .map(DwrfMetadataWriter::toUserMetadata)
-                        .collect(toImmutableList()))
-                .build();
+                        .collect(toImmutableList()));
 
-        return writeProtobufObject(output, footerProtobuf);
+        if (footer.getEncryption().isPresent()) {
+            footerProtobuf.setEncryption(toEncryption(footer.getEncryption().get()));
+        }
+
+        return writeProtobufObject(output, footerProtobuf.build());
     }
 
     private static DwrfProto.StripeInformation toStripeInformation(StripeInformation stripe)
@@ -112,6 +116,9 @@ public class DwrfMetadataWriter
                 .setIndexLength(stripe.getIndexLength())
                 .setDataLength(stripe.getDataLength())
                 .setFooterLength(stripe.getFooterLength())
+                .addAllKeyMetadata(stripe.getKeyMetadata().stream()
+                        .map(keyMetadata -> ByteString.copyFrom(keyMetadata.getBytes()))
+                        .collect(toImmutableList()))
                 .build();
     }
 
@@ -232,6 +239,9 @@ public class DwrfMetadataWriter
                 .addAllColumns(footer.getColumnEncodings().stream()
                         .map(DwrfMetadataWriter::toColumnEncoding)
                         .collect(toImmutableList()))
+                .addAllEncryptedGroups(footer.getStripeEncryptionGroups().stream()
+                        .map(group -> ByteString.copyFrom(group.getBytes()))
+                        .collect(toImmutableList()))
                 .build();
 
         return writeProtobufObject(output, footerProtobuf);
@@ -268,7 +278,7 @@ public class DwrfMetadataWriter
         throw new IllegalArgumentException("Unsupported stream kind: " + streamKind);
     }
 
-    private static DwrfProto.ColumnEncoding toColumnEncoding(ColumnEncoding columnEncodings)
+    public static DwrfProto.ColumnEncoding toColumnEncoding(ColumnEncoding columnEncodings)
     {
         checkArgument(
                 !columnEncodings.getAdditionalSequenceEncodings().isPresent(),
@@ -328,6 +338,48 @@ public class DwrfMetadataWriter
                 return DwrfProto.CompressionKind.ZSTD;
         }
         throw new IllegalArgumentException("Unsupported compression kind: " + compressionKind);
+    }
+
+    private static DwrfProto.Encryption toEncryption(DwrfEncryption encryption)
+    {
+        return DwrfProto.Encryption.newBuilder()
+                .setKeyProvider(toKeyProvider(encryption.getKeyProvider()))
+                .addAllEncryptionGroups(encryption.getEncryptionGroups().stream()
+                        .map(group -> toEncryptionGroup(group))
+                        .collect(toImmutableList()))
+                .build();
+    }
+
+    private static DwrfProto.Encryption.KeyProvider toKeyProvider(KeyProvider keyProvider)
+    {
+        switch (keyProvider) {
+            case CRYPTO_SERVICE:
+                return DwrfProto.Encryption.KeyProvider.CRYPTO_SERVICE;
+            case UNKNOWN:
+                return DwrfProto.Encryption.KeyProvider.UNKNOWN;
+            default:
+                throw new UnsupportedOperationException(format("unknown key provider: %s", keyProvider));
+        }
+    }
+
+    private static DwrfProto.EncryptionGroup toEncryptionGroup(EncryptionGroup encryptionGroup)
+    {
+        return DwrfProto.EncryptionGroup.newBuilder()
+                .addAllNodes(encryptionGroup.getNodes())
+                .setStatistics(ByteString.copyFrom(encryptionGroup.getStatistics().getBytes()))
+                .build();
+    }
+
+    public static DwrfProto.StripeEncryptionGroup toStripeEncryptionGroup(StripeEncryptionGroup stripeEncryptionGroup)
+    {
+        return DwrfProto.StripeEncryptionGroup.newBuilder()
+                .addAllStreams(stripeEncryptionGroup.getStreams().stream()
+                        .map(DwrfMetadataWriter::toStream)
+                        .collect(toImmutableList()))
+                .addAllEncoding(stripeEncryptionGroup.getColumnEncodings().stream()
+                        .map(DwrfMetadataWriter::toColumnEncoding)
+                        .collect(toImmutableList()))
+                .build();
     }
 
     private static int writeProtobufObject(OutputStream output, MessageLite object)

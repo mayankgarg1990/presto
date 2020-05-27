@@ -42,7 +42,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static com.facebook.presto.orc.DwrfDecryptorProvider.createDwrfDecryptorProvider;
 import static com.facebook.presto.orc.NoopOrcAggregatedMemoryContext.NOOP_ORC_AGGREGATED_MEMORY_CONTEXT;
 import static com.facebook.presto.orc.OrcDecompressor.createOrcDecompressor;
 import static java.lang.Math.toIntExact;
@@ -60,7 +59,7 @@ public class OrcReader
     private final int bufferSize;
     private final CompressionKind compressionKind;
     private final Optional<OrcDecompressor> decompressor;
-    private final Optional<DwrfDecryptorProvider> decryptorProvider;
+    private final Optional<DwrfEncryptorProvider> decryptorProvider;
     private final ImmutableList<Slice> dwrfIntermediateKeyMetadata;
     private final Footer footer;
     private final Metadata metadata;
@@ -122,7 +121,7 @@ public class OrcReader
         }
         this.dwrfIntermediateKeyMetadata = ImmutableList.copyOf(requireNonNull(dwrfIntermediateKeyMetadata));
         validateEncryption(this.footer, this.dwrfIntermediateKeyMetadata, this.orcDataSource.getId());
-        this.decryptorProvider = footer.getEncryption().map(encryption -> createDwrfDecryptorProvider(encryption, footer.getTypes()));
+        this.decryptorProvider = footer.getEncryption().map(encryption -> DwrfEncryptorProvider.createDwrfEncryptorProvider(encryption, footer.getTypes()));
 
         try (InputStream metadataInputStream = new OrcInputStream(orcDataSource.getId(), orcFileTail.getMetadataSlice().getInput(), decompressor, aggregatedMemoryContext, orcFileTail.getMetadataSize())) {
             this.metadata = metadataReader.readMetadata(hiveWriterVersion, metadataInputStream);
@@ -317,7 +316,8 @@ public class OrcReader
             List<Type> types,
             DateTimeZone hiveStorageTimeZone,
             OrcEncoding orcEncoding,
-            OrcReaderOptions orcReaderOptions)
+            OrcReaderOptions orcReaderOptions,
+            List<Slice> dwrfIntermediateKeyMetadata)
             throws OrcCorruptionException
     {
         ImmutableMap.Builder<Integer, Type> readTypes = ImmutableMap.builder();
@@ -334,7 +334,7 @@ public class OrcReader
                     NOOP_ORC_AGGREGATED_MEMORY_CONTEXT,
                     orcReaderOptions,
                     false,
-                    ImmutableList.of());
+                    dwrfIntermediateKeyMetadata);
             try (OrcBatchRecordReader orcRecordReader = orcReader.createBatchRecordReader(
                     readTypes.build(),
                     OrcPredicate.TRUE,

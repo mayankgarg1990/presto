@@ -22,6 +22,7 @@ import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
 import com.facebook.presto.orc.metadata.CompressionKind;
+import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
 import com.facebook.presto.orc.metadata.Stream.StreamKind;
@@ -59,6 +60,7 @@ public class MapColumnWriter
     private final ColumnEncoding columnEncoding;
     private final LongOutputStream lengthStream;
     private final PresentOutputStream presentStream;
+    private final CompressedMetadataWriter metadataWriter;
     private final ColumnWriter keyWriter;
     private final ColumnWriter valueWriter;
 
@@ -69,7 +71,7 @@ public class MapColumnWriter
 
     private boolean closed;
 
-    public MapColumnWriter(int column, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter)
+    public MapColumnWriter(int column, CompressionKind compression, Optional<DwrfEncryptor> dwrfEncryptor, int bufferSize, OrcEncoding orcEncoding, ColumnWriter keyWriter, ColumnWriter valueWriter, MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
@@ -79,6 +81,7 @@ public class MapColumnWriter
         this.valueWriter = requireNonNull(valueWriter, "valueWriter is null");
         this.lengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
         this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
+        this.metadataWriter = new CompressedMetadataWriter(metadataWriter, compression, dwrfEncryptor, bufferSize);
     }
 
     @Override
@@ -181,7 +184,7 @@ public class MapColumnWriter
     }
 
     @Override
-    public List<StreamDataOutput> getIndexStreams(CompressedMetadataWriter metadataWriter)
+    public List<StreamDataOutput> getIndexStreams()
             throws IOException
     {
         checkState(closed);
@@ -204,8 +207,8 @@ public class MapColumnWriter
 
         ImmutableList.Builder<StreamDataOutput> indexStreams = ImmutableList.builder();
         indexStreams.add(new StreamDataOutput(slice, stream));
-        indexStreams.addAll(keyWriter.getIndexStreams(metadataWriter));
-        indexStreams.addAll(valueWriter.getIndexStreams(metadataWriter));
+        indexStreams.addAll(keyWriter.getIndexStreams());
+        indexStreams.addAll(valueWriter.getIndexStreams());
         return indexStreams.build();
     }
 

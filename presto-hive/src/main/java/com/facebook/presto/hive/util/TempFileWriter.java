@@ -29,6 +29,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 
 import static com.facebook.presto.orc.OrcEncoding.ORC;
@@ -84,6 +85,7 @@ public class TempFileWriter
                     types,
                     ORC,
                     LZ4,
+                    Optional.empty(),
                     new OrcWriterOptions()
                             .withMaxStringStatisticsLimit(new DataSize(0, BYTE))
                             .withStripeMinSize(new DataSize(64, MEGABYTE))

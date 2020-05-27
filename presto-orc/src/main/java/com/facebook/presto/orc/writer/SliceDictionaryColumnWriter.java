@@ -25,6 +25,7 @@ import com.facebook.presto.orc.checkpoint.LongStreamCheckpoint;
 import com.facebook.presto.orc.metadata.ColumnEncoding;
 import com.facebook.presto.orc.metadata.CompressedMetadataWriter;
 import com.facebook.presto.orc.metadata.CompressionKind;
+import com.facebook.presto.orc.metadata.MetadataWriter;
 import com.facebook.presto.orc.metadata.RowGroupIndex;
 import com.facebook.presto.orc.metadata.Stream;
 import com.facebook.presto.orc.metadata.Stream.StreamKind;
@@ -83,6 +84,8 @@ public class SliceDictionaryColumnWriter
     private final PresentOutputStream presentStream;
     private final ByteArrayOutputStream dictionaryDataStream;
     private final LongOutputStream dictionaryLengthStream;
+    private final CompressedMetadataWriter compressedMetadataWriter;
+    private final MetadataWriter metadataWriter;
 
     private final DictionaryBuilder dictionary = new DictionaryBuilder(10000);
 
@@ -111,7 +114,8 @@ public class SliceDictionaryColumnWriter
             Optional<DwrfEncryptor> dwrfEncryptor,
             int bufferSize,
             OrcEncoding orcEncoding,
-            DataSize stringStatisticsLimit)
+            DataSize stringStatisticsLimit,
+            MetadataWriter metadataWriter)
     {
         checkArgument(column >= 0, "column is negative");
         this.column = column;
@@ -132,6 +136,8 @@ public class SliceDictionaryColumnWriter
         this.presentStream = new PresentOutputStream(compression, dwrfEncryptor, bufferSize);
         this.dictionaryDataStream = new ByteArrayOutputStream(compression, dwrfEncryptor, bufferSize, StreamKind.DICTIONARY_DATA);
         this.dictionaryLengthStream = createLengthOutputStream(compression, dwrfEncryptor, bufferSize, orcEncoding);
+        this.metadataWriter = requireNonNull(metadataWriter, "metadataWriter is null");
+        this.compressedMetadataWriter = new CompressedMetadataWriter(metadataWriter, compression, dwrfEncryptor, bufferSize);
         values = new IntBigArray();
         this.statisticsBuilder = newStringStatisticsBuilder();
     }
@@ -184,7 +190,7 @@ public class SliceDictionaryColumnWriter
         checkState(!closed);
         checkState(!directEncoded);
         if (directColumnWriter == null) {
-            directColumnWriter = new SliceDirectColumnWriter(column, type, compression, dwrfEncryptor, bufferSize, orcEncoding, this::newStringStatisticsBuilder);
+            directColumnWriter = new SliceDirectColumnWriter(column, type, compression, dwrfEncryptor, bufferSize, orcEncoding, this::newStringStatisticsBuilder, metadataWriter);
         }
         checkState(directColumnWriter.getBufferedBytes() == 0);
 
@@ -466,13 +472,13 @@ public class SliceDictionaryColumnWriter
     }
 
     @Override
-    public List<StreamDataOutput> getIndexStreams(CompressedMetadataWriter metadataWriter)
+    public List<StreamDataOutput> getIndexStreams()
             throws IOException
     {
         checkState(closed);
 
         if (directEncoded) {
-            return directColumnWriter.getIndexStreams(metadataWriter);
+            return directColumnWriter.getIndexStreams();
         }
 
         ImmutableList.Builder<RowGroupIndex> rowGroupIndexes = ImmutableList.builder();
@@ -488,7 +494,7 @@ public class SliceDictionaryColumnWriter
             rowGroupIndexes.add(new RowGroupIndex(positions, columnStatistics));
         }
 
-        Slice slice = metadataWriter.writeRowIndexes(rowGroupIndexes.build());
+        Slice slice = compressedMetadataWriter.writeRowIndexes(rowGroupIndexes.build());
         Stream stream = new Stream(column, StreamKind.ROW_INDEX, slice.length(), false);
         return ImmutableList.of(new StreamDataOutput(slice, stream));
     }
