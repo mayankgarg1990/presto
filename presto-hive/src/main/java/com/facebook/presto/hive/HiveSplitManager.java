@@ -97,6 +97,7 @@ public class HiveSplitManager
     private final CounterStat highMemorySplitSourceCounter;
     private final CacheQuotaScope cacheQuotaScope;
     private final Optional<DataSize> configuredCacheQuota;
+    private final HiveEncryptionMetadataProvider encryptionMetadataProvider;
 
     @Inject
     public HiveSplitManager(
@@ -107,7 +108,8 @@ public class HiveSplitManager
             HdfsEnvironment hdfsEnvironment,
             DirectoryLister directoryLister,
             @ForHiveClient ExecutorService executorService,
-            CoercionPolicy coercionPolicy)
+            CoercionPolicy coercionPolicy,
+            HiveEncryptionMetadataProvider encryptionMetadataProvider)
     {
         this(
                 hiveTransactionManager,
@@ -125,7 +127,8 @@ public class HiveSplitManager
                 hiveClientConfig.getSplitLoaderConcurrency(),
                 hiveClientConfig.getRecursiveDirWalkerEnabled(),
                 cacheConfig.getCacheQuotaScope(),
-                cacheConfig.getDefaultCacheQuota());
+                cacheConfig.getDefaultCacheQuota(),
+                encryptionMetadataProvider);
     }
 
     public HiveSplitManager(
@@ -144,7 +147,8 @@ public class HiveSplitManager
             int splitLoaderConcurrency,
             boolean recursiveDfsWalkerEnabled,
             CacheQuotaScope cacheQuotaScope,
-            Optional<DataSize> configuredCacheQuota)
+            Optional<DataSize> configuredCacheQuota,
+            HiveEncryptionMetadataProvider encryptionMetadataProvider)
     {
         this.hiveTransactionManager = requireNonNull(hiveTransactionManager, "hiveTransactionManager is null");
         this.namenodeStats = requireNonNull(namenodeStats, "namenodeStats is null");
@@ -163,6 +167,7 @@ public class HiveSplitManager
         this.recursiveDfsWalkerEnabled = recursiveDfsWalkerEnabled;
         this.cacheQuotaScope = requireNonNull(cacheQuotaScope, "cacheScope is null");
         this.configuredCacheQuota = requireNonNull(configuredCacheQuota, "defaultCacheQuota is null");
+        this.encryptionMetadataProvider = requireNonNull(encryptionMetadataProvider, "encryptionMetadataProvider is null");
     }
 
     @Override
@@ -324,7 +329,7 @@ public class HiveSplitManager
         if (hivePartitions.size() == 1) {
             HivePartition firstPartition = getOnlyElement(hivePartitions);
             if (firstPartition.getPartitionId().equals(UNPARTITIONED_ID)) {
-                return ImmutableList.of(new HivePartitionMetadata(firstPartition, Optional.empty(), ImmutableMap.of()));
+                return ImmutableList.of(new HivePartitionMetadata(firstPartition, Optional.empty(), ImmutableMap.of(), encryptionMetadataProvider.getEncryptionMetadata(table)));
             }
         }
 
@@ -346,6 +351,8 @@ public class HiveSplitManager
                 throw new PrestoException(GENERIC_INTERNAL_ERROR, format("Expected %s partitions but found %s", partitionBatch.size(), partitions.size()));
             }
 
+            Optional<Map<String, EncryptionMetadata>> encryptionMetadataForPartitions = encryptionMetadataProvider.getEncryptionMetadata(table, partitions);
+
             ImmutableList.Builder<HivePartitionMetadata> results = ImmutableList.builder();
             for (HivePartition hivePartition : partitionBatch) {
                 Partition partition = partitions.get(hivePartition.getPartitionId());
@@ -353,6 +360,7 @@ public class HiveSplitManager
                     throw new PrestoException(GENERIC_INTERNAL_ERROR, "Partition not loaded: " + hivePartition);
                 }
                 String partName = makePartName(table.getPartitionColumns(), partition.getValues());
+                Optional<EncryptionMetadata> encryptionMetadata = encryptionMetadataForPartitions.map(metadata -> metadata.get(hivePartition.getPartitionId()));
 
                 if (!isOfflineDataDebugModeEnabled(session)) {
                     // verify partition is online
@@ -432,7 +440,7 @@ public class HiveSplitManager
                     }
                 }
 
-                results.add(new HivePartitionMetadata(hivePartition, Optional.of(partition), partitionSchemaDifference.build()));
+                results.add(new HivePartitionMetadata(hivePartition, Optional.of(partition), partitionSchemaDifference.build(), encryptionMetadata));
             }
 
             return results.build();

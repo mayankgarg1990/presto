@@ -91,7 +91,8 @@ public class TestHiveSplit
                         ImmutableList.of(new HiveColumnHandle("col", HIVE_LONG, BIGINT.getTypeSignature(), 5, ColumnType.REGULAR, Optional.of("comment"))))),
                 false,
                 Optional.empty(),
-                NO_CACHE_REQUIREMENT);
+                NO_CACHE_REQUIREMENT,
+                Optional.empty());
 
         JsonCodec<HiveSplit> codec = getJsonCodec();
         String json = codec.toJson(expected);

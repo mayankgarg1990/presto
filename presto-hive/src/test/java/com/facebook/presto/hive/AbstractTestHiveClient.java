@@ -958,7 +958,8 @@ public abstract class AbstractTestHiveClient
                 hiveClientConfig.getSplitLoaderConcurrency(),
                 false,
                 cacheConfig.getCacheQuotaScope(),
-                cacheConfig.getDefaultCacheQuota());
+                cacheConfig.getDefaultCacheQuota(),
+                new HiveEncryptionMetadataProvider(ImmutableSet.of()));
         pageSinkProvider = new HivePageSinkProvider(
                 getDefaultHiveFileWriterFactories(hiveClientConfig, metastoreClientConfig),
                 hdfsEnvironment,

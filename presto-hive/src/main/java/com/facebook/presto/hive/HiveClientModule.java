@@ -174,6 +174,8 @@ public class HiveClientModule
         configBinder(binder).bindConfig(ParquetFileWriterConfig.class);
         fileWriterFactoryBinder.addBinding().to(ParquetFileWriterFactory.class).in(Scopes.SINGLETON);
         binder.install(new MetastoreClientModule());
+
+        binder.bind(HiveEncryptionMetadataProvider.class).in(Scopes.SINGLETON);
     }
 
     @ForHiveClient

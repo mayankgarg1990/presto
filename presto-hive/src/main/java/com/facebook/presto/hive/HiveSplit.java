@@ -58,6 +58,7 @@ public class HiveSplit
     private final boolean s3SelectPushdownEnabled;
     private final Optional<byte[]> extraFileInfo;
     private final CacheQuotaRequirement cacheQuotaRequirement;
+    private final Optional<EncryptionMetadata> encryptionMetadata;
 
     @JsonCreator
     public HiveSplit(
@@ -79,7 +80,8 @@ public class HiveSplit
             @JsonProperty("bucketConversion") Optional<BucketConversion> bucketConversion,
             @JsonProperty("s3SelectPushdownEnabled") boolean s3SelectPushdownEnabled,
             @JsonProperty("extraFileInfo") Optional<byte[]> extraFileInfo,
-            @JsonProperty("cacheQuota") CacheQuotaRequirement cacheQuotaRequirement)
+            @JsonProperty("cacheQuota") CacheQuotaRequirement cacheQuotaRequirement,
+            @JsonProperty("encryptionMetadata") Optional<EncryptionMetadata> encryptionMetadata)
     {
         checkArgument(start >= 0, "start must be positive");
         checkArgument(length >= 0, "length must be positive");
@@ -98,6 +100,7 @@ public class HiveSplit
         requireNonNull(bucketConversion, "bucketConversion is null");
         requireNonNull(extraFileInfo, "extraFileInfo is null");
         requireNonNull(cacheQuotaRequirement, "cacheQuotaRequirement is null");
+        requireNonNull(encryptionMetadata, "encryptionMetadata is null");
 
         this.database = database;
         this.table = table;
@@ -118,6 +121,7 @@ public class HiveSplit
         this.s3SelectPushdownEnabled = s3SelectPushdownEnabled;
         this.extraFileInfo = extraFileInfo;
         this.cacheQuotaRequirement = cacheQuotaRequirement;
+        this.encryptionMetadata = encryptionMetadata;
     }
 
     @JsonProperty
@@ -252,6 +256,12 @@ public class HiveSplit
     public CacheQuotaRequirement getCacheQuotaRequirement()
     {
         return cacheQuotaRequirement;
+    }
+
+    @JsonProperty
+    public Optional<EncryptionMetadata> getEncryptionMetadata()
+    {
+        return encryptionMetadata;
     }
 
     @Override
