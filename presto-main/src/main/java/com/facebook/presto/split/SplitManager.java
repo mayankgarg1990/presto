@@ -31,6 +31,7 @@ import com.facebook.presto.spi.connector.ConnectorSplitManager.SplitSchedulingSt
 
 import javax.inject.Inject;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -67,7 +68,7 @@ public class SplitManager
         splitManagers.remove(connectorId);
     }
 
-    public SplitSource getSplits(Session session, TableHandle table, SplitSchedulingStrategy splitSchedulingStrategy)
+    public SplitSource getSplits(Session session, TableHandle table, SplitSchedulingStrategy splitSchedulingStrategy, List<String> columns)
     {
         ConnectorId connectorId = table.getConnectorId();
         ConnectorSplitManager splitManager = getConnectorSplitManager(connectorId);
@@ -88,7 +89,8 @@ public class SplitManager
                 table.getTransaction(),
                 connectorSession,
                 layout,
-                new SplitSchedulingContext(splitSchedulingStrategy, preferSplitHostAddresses));
+                new SplitSchedulingContext(splitSchedulingStrategy, preferSplitHostAddresses),
+                columns);
 
         SplitSource splitSource = new ConnectorAwareSplitSource(connectorId, table.getTransaction(), source);
         if (minScheduleSplitBatchSize > 1) {

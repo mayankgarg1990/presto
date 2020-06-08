@@ -45,10 +45,10 @@ public class CloseableSplitSourceProvider
     }
 
     @Override
-    public synchronized SplitSource getSplits(Session session, TableHandle tableHandle, SplitSchedulingStrategy splitSchedulingStrategy)
+    public synchronized SplitSource getSplits(Session session, TableHandle tableHandle, SplitSchedulingStrategy splitSchedulingStrategy, List<String> columns)
     {
         checkState(!closed, "split source provider is closed");
-        SplitSource splitSource = delegate.getSplits(session, tableHandle, splitSchedulingStrategy);
+        SplitSource splitSource = delegate.getSplits(session, tableHandle, splitSchedulingStrategy, columns);
         splitSources.add(splitSource);
         return splitSource;
     }

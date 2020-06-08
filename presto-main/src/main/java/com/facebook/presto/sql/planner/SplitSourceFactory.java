@@ -31,6 +31,7 @@ import com.facebook.presto.spi.plan.TableScanNode;
 import com.facebook.presto.spi.plan.TopNNode;
 import com.facebook.presto.spi.plan.UnionNode;
 import com.facebook.presto.spi.plan.ValuesNode;
+import com.facebook.presto.spi.relation.VariableReferenceExpression;
 import com.facebook.presto.split.SampledSplitSource;
 import com.facebook.presto.split.SplitSource;
 import com.facebook.presto.split.SplitSourceProvider;
@@ -66,6 +67,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static com.facebook.presto.spi.connector.ConnectorSplitManager.SplitSchedulingStrategy.GROUPED_SCHEDULING;
 import static com.facebook.presto.spi.connector.ConnectorSplitManager.SplitSchedulingStrategy.REWINDABLE_GROUPED_SCHEDULING;
@@ -152,7 +154,8 @@ public class SplitSourceFactory
             Supplier<SplitSource> splitSourceSupplier = () -> splitSourceProvider.getSplits(
                     session,
                     table,
-                    getSplitSchedulingStrategy(stageExecutionDescriptor, node.getId()));
+                    getSplitSchedulingStrategy(stageExecutionDescriptor, node.getId()),
+                    node.getOutputVariables().stream().map(VariableReferenceExpression::getName).collect(Collectors.toList()));
 
             SplitSource splitSource = new LazySplitSource(splitSourceSupplier);
 

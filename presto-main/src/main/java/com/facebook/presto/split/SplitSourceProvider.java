@@ -17,7 +17,9 @@ import com.facebook.presto.Session;
 import com.facebook.presto.spi.TableHandle;
 import com.facebook.presto.spi.connector.ConnectorSplitManager.SplitSchedulingStrategy;
 
+import java.util.List;
+
 public interface SplitSourceProvider
 {
-    SplitSource getSplits(Session session, TableHandle tableHandle, SplitSchedulingStrategy splitSchedulingStrategy);
+    SplitSource getSplits(Session session, TableHandle tableHandle, SplitSchedulingStrategy splitSchedulingStrategy, List<String> columns);
 }

@@ -17,6 +17,8 @@ import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 
+import java.util.List;
+
 import static java.util.Objects.requireNonNull;
 
 public interface ConnectorSplitManager
@@ -25,7 +27,8 @@ public interface ConnectorSplitManager
             ConnectorTransactionHandle transactionHandle,
             ConnectorSession session,
             ConnectorTableLayoutHandle layout,
-            SplitSchedulingContext splitSchedulingContext);
+            SplitSchedulingContext splitSchedulingContext,
+            List<String> columns);
 
     enum SplitSchedulingStrategy
     {
